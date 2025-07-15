@@ -9,6 +9,7 @@ import java.util.List;
 public class ScheduledTaskRepository {
 
     public List<ScheduledTask> findScheduledTasks() {
+        String sql = "select * from scheduled_task";
         return null;
     }
 }

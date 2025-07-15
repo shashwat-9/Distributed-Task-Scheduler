@@ -6,20 +6,20 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 
 @Component
 public class ApplicationStartUpRoutine implements CommandLineRunner {
 
-    @Autowired
-    private ThreadPoolExecutor threadPoolExecutor;
+    private final ThreadPoolExecutor threadPoolExecutor;
 
-    private final BlockingQueue<Task> taskQueue = new LinkedBlockingQueue<>();
+    @Autowired
+    public ApplicationStartUpRoutine(ThreadPoolExecutor threadPoolExecutor) {
+        this.threadPoolExecutor = threadPoolExecutor;
+    }
 
     @Override
     public void run(String... args) {
-//        startWorkerThreads();
+
     }
 
 }
