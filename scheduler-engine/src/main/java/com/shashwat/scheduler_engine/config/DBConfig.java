@@ -1,5 +1,6 @@
 package com.shashwat.scheduler_engine.config;
 
+import com.zaxxer.hikari.HikariDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
@@ -17,16 +18,6 @@ public class DBConfig {
     @Autowired
     public DBConfig(Environment environment) {
         this.environment = environment;
-    }
-
-    @Bean
-    public DataSource dataSource() {
-        return DataSourceBuilder.create()
-                .url(environment.getProperty("datasource.url"))
-                .username(environment.getProperty("datasource.username"))
-                .password(environment.getProperty("datasource.password"))
-                .driverClassName("org.postgresql.Driver")
-                .build();
     }
 
     @Bean
