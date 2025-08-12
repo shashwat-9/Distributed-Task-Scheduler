@@ -9,14 +9,14 @@ BEGIN
     LOOP
 
         processed_in_batch := FALSE;
-        FOR task_row IN SELECT * FROM SCHEDULED_TASKS WHERE NEXT_SCHEDULED_DATE = CURRENT_DATE + INTERVAL '1 day' AND CREATED_AT < CURRENT_DATE AND IS_ACTIVE = TRUE ORDER BY ID LIMIT batch_size OFFSET offset_value FOR SHARE
+        FOR task_row IN SELECT * FROM SCHEDULED_TASKS WHERE NEXT_SCHEDULED_DATE = CURRENT_DATE + INTERVAL '1 day' AND CREATED_AT < CURRENT_DATE AND IS_ACTIVE = TRUE ORDER BY ID LIMIT batch_size OFFSET offset_value FOR UPDATE
         LOOP
             processed_in_batch := TRUE;
 
             SAVEPOINT per_task_savepoint;
             BEGIN
                 CALL insert_row_into_execution_table(task_row, CURRENT_DATE + INTERVAL '1 day');
-                UPDATE SCHEDULED_TASKS SET NEXT_SCHEDULED_DATE = (SELECT find_the_next_scheduled_date(task_row.CRON_SCHEDULE, CURRENT_DATE + INTERVAL '1 day')) WHERE SCHEDULED_TASKS.ID = task_row.ID;
+                UPDATE SCHEDULED_TASKS SET NEXT_SCHEDULED_DATE = (SELECT get_next_scheduled_date(task_row.CRON_SCHEDULE, CURRENT_DATE + INTERVAL '1 day')) WHERE SCHEDULED_TASKS.ID = task_row.ID;
             EXCEPTION
                 WHEN OTHERS THEN
                     ROLLBACK TO SAVEPOINT per_task_savepoint;
@@ -57,19 +57,20 @@ $$;
 CREATE OR REPLACE FUNCTION find_the_scheduled_time(cron_expr TEXT)
 RETURNS TIME[]
 LANGUAGE plpgsql
+IMMUTABLE STRICT PARALLEL SAFE
 AS $$
 DECLARE
     result_array TIME[] := '{}';
     cron_elements TEXT[];
-    hour_list TEXT[];
-    mins_list TEXT[];
-    hour_val TEXT;
-    minute_val TEXT;
+    hour_list INT[];
+    mins_list INT[];
+    hour_val INT;
+    minute_val INT;
     time TIME;
 BEGIN
     cron_elements := string_to_array(cron_expr, ' ');
-    SELECT find_the_collection_for_schedule_element(cron_elements, 1) INTO mins_list;
-    SELECT find_the_collection_for_schedule_element(cron_elements, 2) INTO hour_list;
+    mins_list := get_schedule_resolved_for_cron_element(0, 59, cron_elements[1]);
+    hour_list := get_schedule_resolved_for_cron_element(0,23, cron_elements[2]);
 
     FOREACH hour_val IN ARRAY hour_list
     LOOP
@@ -81,38 +82,5 @@ BEGIN
     END LOOP;
 
     RETURN result_array;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION find_the_collection_for_schedule_element(cron_elements TEXT[], idx INTEGER)
-RETURNS TEXT[]
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    max_value_of_each_element INT[] := '{60, 24, 31, 12, 7}';
-BEGIN
-
-    -- Resolving elements at the idx position in cron
-    IF cron_elements[idx] ~ '\\*/[1-n]{1}$' THEN
-
-    ELSEIF cron_elements[idx] ~ '^[0-9]-[0-9]$' THEN
-
-    ELSEIF cron_elements[idx] ~ '[0-9]' THEN
-
-    ELSEIF cron_elements[idx] ~ '[0-9]' THEN
-
-    END IF;
-
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION find_the_next_scheduled_date(cron_expr TEXT, execution_date DATE)
-RETURNS DATE
-LANGUAGE plpgsql
-AS $$
-DECLARE
-
-BEGIN
-
 END;
 $$;
