@@ -1,3 +1,5 @@
-module github.com/shashwat-9/Distributed-Task-Scheduler/scheduler-engine
+module scheduler-engine
 
 go 1.25.4
+
+require github.com/confluentinc/confluent-kafka-go/v2 v2.12.0
