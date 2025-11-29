@@ -6,17 +6,31 @@ import (
 )
 
 type Consumer struct {
-	BootstrapServers string
-	GroupId          string
-	Topic            string
-	KafkaConsumer    *kafka.Consumer
+	BootstrapServers    string
+	GroupId             string
+	EnableAutoCommit    bool
+	AutoOffsetReset     string
+	SessionTimeoutMs    int
+	HeartbeatIntervalMs int
+	MaxPollIntervalMs   int
+	FetchMinBytes       int
+	FetchMaxWaitMs      int
+	Topic               []string
+	KafkaConsumer       *kafka.Consumer
 }
 
 func (consumer *Consumer) createConsumer() {
 	cons, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers": consumer.BootstrapServers,
-		"group.id":          consumer.GroupId,
-		"auto.offset.reset": "earliest",
+		"bootstrap.servers":             consumer.BootstrapServers,
+		"group.id":                      consumer.GroupId,
+		"auto.offset.reset":             consumer.AutoOffsetReset,
+		"session.timeout.ms":            consumer.SessionTimeoutMs,
+		"heartbeat.interval.ms":         consumer.HeartbeatIntervalMs,
+		"max.poll.interval.ms":          consumer.MaxPollIntervalMs,
+		"fetch.min.bytes":               consumer.FetchMinBytes,
+		"fetch.max.wait.ms":             consumer.FetchMaxWaitMs,
+		"enable.auto.commit":            consumer.EnableAutoCommit,
+		"partition.assignment.strategy": "Cooperative-Sticky",
 	})
 
 	if err != nil {
@@ -27,16 +41,54 @@ func (consumer *Consumer) createConsumer() {
 }
 
 func (consumer *Consumer) Subscribe() {
-	consumer.KafkaConsumer.SubscribeTopics([]string{consumer.Topic}, nil)
+	err := consumer.KafkaConsumer.SubscribeTopics(consumer.Topic, nil)
+
+	if err != nil {
+		panic(err)
+	}
+}
+
+func (consumer *Consumer) handleError(err error) {
+
 }
 
 func (consumer *Consumer) consume() {
 	for {
-		msg, err := consumer.KafkaConsumer.ReadMessage(-1)
-		if err == nil {
-			slog.Info("Message on", msg.TopicPartition, " ", string(msg.Value))
+		msg := consumer.KafkaConsumer.Poll(100)
+		switch e := msg.(type) {
+		case *kafka.Message:
+			slog.Info("Received message: %v", string(e.Value))
+			err := processMessage(e)
+			if err != nil {
+				slog.Error("Error processing message: %v", err)
+				consumer.handleError(err)
+			}
+			commitMsg, err := consumer.KafkaConsumer.CommitMessage(e)
+			if err != nil {
+				slog.Error("Error committing message: %v", err)
+			} else {
+				slog.Info("Committed message: %v", commitMsg)
+			}
+		case kafka.Error:
+			slog.Error("Error: %v", e)
+			if e.IsFatal() {
+				panic(e)
+			}
+		default:
+			slog.Info("Ignored message")
 		}
 	}
+}
+
+func processMessage(msg *kafka.Message) error {
+
+	slog.Info("Processing message key: %v", msg.Key, "value :%v", msg.Value, " received in TopicPartition: %v", msg.TopicPartition)
+
+	return nil
+}
+
+func (consumer *Consumer) Close() {
+	consumer.KafkaConsumer.Close()
 }
 
 func (consumer *Consumer) Setup() error {
