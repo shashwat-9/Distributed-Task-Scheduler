@@ -24,11 +24,14 @@ func (producer *Producer) createProducer() {
 }
 
 func (producer *Producer) Produce(topic, key, value string) {
-	producer.KafkaProducer.Produce(&kafka.Message{
+	err := producer.KafkaProducer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Key:            []byte(key),
 		Value:          []byte(value),
 	}, nil)
+	if err != nil {
+		return
+	}
 }
 
 func (producer *Producer) Setup() {

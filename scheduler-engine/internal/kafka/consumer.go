@@ -17,6 +17,7 @@ type Consumer struct {
 	FetchMaxWaitMs      int
 	Topic               []string
 	KafkaConsumer       *kafka.Consumer
+	run                 bool
 }
 
 func (consumer *Consumer) createConsumer() {
@@ -49,11 +50,11 @@ func (consumer *Consumer) Subscribe() {
 }
 
 func (consumer *Consumer) handleError(err error) {
-
+	slog.Error("Error: %v", err)
 }
 
 func (consumer *Consumer) consume() {
-	for {
+	for consumer.run {
 		msg := consumer.KafkaConsumer.Poll(100)
 		switch e := msg.(type) {
 		case *kafka.Message:
@@ -63,16 +64,20 @@ func (consumer *Consumer) consume() {
 				slog.Error("Error processing message: %v", err)
 				consumer.handleError(err)
 			}
-			commitMsg, err := consumer.KafkaConsumer.CommitMessage(e)
-			if err != nil {
-				slog.Error("Error committing message: %v", err)
-			} else {
-				slog.Info("Committed message: %v", commitMsg)
-			}
 		case kafka.Error:
 			slog.Error("Error: %v", e)
 			if e.IsFatal() {
 				panic(e)
+			}
+		case kafka.AssignedPartitions:
+			err := consumer.KafkaConsumer.Assign(e.Partitions)
+			if err != nil {
+				return
+			}
+		case kafka.RevokedPartitions:
+			err := consumer.KafkaConsumer.Unassign()
+			if err != nil {
+				return
 			}
 		default:
 			slog.Info("Ignored message")
@@ -88,7 +93,10 @@ func processMessage(msg *kafka.Message) error {
 }
 
 func (consumer *Consumer) Close() {
-	consumer.KafkaConsumer.Close()
+	err := consumer.KafkaConsumer.Close()
+	if err != nil {
+
+	}
 }
 
 func (consumer *Consumer) Setup() error {
