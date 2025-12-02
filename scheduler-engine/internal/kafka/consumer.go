@@ -3,6 +3,7 @@ package kafka
 import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"log/slog"
+	"sync"
 )
 
 type Consumer struct {
@@ -18,6 +19,10 @@ type Consumer struct {
 	Topic               []string
 	KafkaConsumer       *kafka.Consumer
 	run                 bool
+	workerPoolSize      int
+	PartitionAssignment map[int32]chan *kafka.Message
+	jobs                []chan *kafka.Message
+	wg                  *sync.WaitGroup
 }
 
 func (consumer *Consumer) createConsumer() {
@@ -50,31 +55,43 @@ func (consumer *Consumer) Subscribe() {
 }
 
 func (consumer *Consumer) handleError(err error) {
+	//send to DLQ
 	slog.Error("Error: %v", err)
 }
 
 func (consumer *Consumer) consume() {
+	defer func() {
+		for i := 0; i < consumer.workerPoolSize; i++ {
+			close(consumer.jobs[i])
+		}
+	}()
 	for consumer.run {
 		msg := consumer.KafkaConsumer.Poll(100)
 		switch e := msg.(type) {
 		case *kafka.Message:
 			slog.Info("Received message: %v", string(e.Value))
-			err := processMessage(e)
-			if err != nil {
-				slog.Error("Error processing message: %v", err)
-				consumer.handleError(err)
-			}
+			consumer.PartitionAssignment[e.TopicPartition.Partition] <- e
 		case kafka.Error:
 			slog.Error("Error: %v", e)
 			if e.IsFatal() {
-				panic(e)
+				//panic(e)
 			}
 		case kafka.AssignedPartitions:
+			if consumer.PartitionAssignment == nil {
+				consumer.PartitionAssignment = make(map[int32]chan *kafka.Message)
+			}
+			for i := 0; i < len(e.Partitions); i++ {
+				consumer.PartitionAssignment[e.Partitions[i].Partition] = consumer.jobs[i%consumer.workerPoolSize]
+			}
 			err := consumer.KafkaConsumer.Assign(e.Partitions)
+
 			if err != nil {
 				return
 			}
 		case kafka.RevokedPartitions:
+			for _, p := range e.Partitions {
+				delete(consumer.PartitionAssignment, p.Partition)
+			}
 			err := consumer.KafkaConsumer.Unassign()
 			if err != nil {
 				return
@@ -88,20 +105,52 @@ func (consumer *Consumer) consume() {
 func processMessage(msg *kafka.Message) error {
 
 	slog.Info("Processing message key: %v", msg.Key, "value :%v", msg.Value, " received in TopicPartition: %v", msg.TopicPartition)
-
+	//pkg.method()
 	return nil
 }
 
-func (consumer *Consumer) Close() {
-	err := consumer.KafkaConsumer.Close()
-	if err != nil {
+func (consumer *Consumer) startWorkerPool() {
+	consumer.jobs = make([]chan *kafka.Message, consumer.workerPoolSize)
 
+	for i := 0; i < consumer.workerPoolSize; i++ {
+		consumer.jobs[i] = make(chan *kafka.Message, 10)
+		consumer.wg.Add(1)
+		go func() {
+			defer consumer.wg.Done()
+			for msg := range consumer.jobs[i] {
+				err := processMessage(msg)
+				if err != nil {
+					slog.Error("Error processing message: %v", err)
+					consumer.handleError(err)
+				}
+			}
+		}()
 	}
+}
+
+func (consumer *Consumer) Close() error {
+	consumer.run = false
+
+	slog.Info("Closing consumer")
+	err := consumer.KafkaConsumer.Close()
+
+	slog.Info("Waiting for consumer to finish")
+	consumer.wg.Wait()
+
+	if err != nil {
+		slog.Error("Failed to close consumer: %v", err)
+		return err
+	} else {
+		slog.Info("Closed consumer successfully")
+	}
+
+	return nil
 }
 
 func (consumer *Consumer) Setup() error {
 	consumer.createConsumer()
 	consumer.Subscribe()
+	consumer.startWorkerPool()
 	go consumer.consume()
 
 	return nil
