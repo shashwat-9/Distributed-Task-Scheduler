@@ -1,0 +1,28 @@
+kafka:
+  consumer:
+    bootstrap_servers: "localhost:9092"
+    group_id: "mygroup"
+    topic:
+      - "events"
+    enable_auto_commit: false
+    auto_offset_reset: "earliest"
+    session_timeout_ms: 10000
+    heartbeat_interval_ms: 3000
+    max_poll_interval_ms: 300000
+    fetch_min_bytes: 1
+    fetch_max_wait_ms: 500
+    worker_pool_size: 4
+  producer:
+    bootstrap_servers: "localhost:9092"
+    topic: "events"
+    client_id: "my-app-producer"
+    acks: "all"
+    delivery_timeout_ms: 120000
+    request_timeout_ms: 30000
+    linger_ms: 5
+    queue_buffering_max_kbytes: 1048576
+    compression_type: "snappy"
+    batch_size: 16384
+    max_in_flight_requests_per_connection: 5
+    max_request_size: 1048576
+    enable_idempotence: true
