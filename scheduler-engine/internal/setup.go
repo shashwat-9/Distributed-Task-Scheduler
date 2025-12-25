@@ -2,35 +2,38 @@ package internal
 
 import (
 	"log"
+	"log/slog"
 	"scheduler-engine/internal/config"
-	//"scheduler-engine/internal/kafka"
+	"scheduler-engine/internal/kafka"
 )
 
-func Init() error {
-	log.Println("Setting up application")
-	appConfig, err := config.LoadConfig()
-	if err != nil {
-		panic(err)
-	}
-	log.Println(appConfig)
-	//setUpProducer(appConfig.ProducerConfig)
-	//setUpConsumer(appConfig.ConsumerConfig)
-	return nil
-}
+func Init() (*kafka.Consumer, *kafka.Producer, error) {
+	slog.Info("Setting up application")
+	appConfig, err := config.LoadConfigAndValidate()
 
-//func setUpConsumer(consumerConfig config.KafkaConsumerConfig) (consumer kafka.Consumer, err error) {
-//	consumer = kafka.Consumer{
-//		BootstrapServers:    consumerConfig.BootstrapServers,
-//		GroupId:             consumerConfig.GroupId,
-//		Topic:               consumerConfig.Topic,
-//		SessionTimeoutMs:    consumerConfig.SessionTimeoutMs,
-//		MaxPollIntervalMs:   consumerConfig.MaxPollIntervalMs,
-//		HeartbeatIntervalMs: consumerConfig.HeartbeatIntervalMs,
-//	}
-//
-//	return consumer, nil
-//}
-//
-//func setUpProducer(producerConfig config.KafkaProducerConfig) (producer kafka.Producer, err error) {
-//
-//}
+	if err != nil {
+		return nil, nil, err
+	}
+
+	log.Println(appConfig)
+
+	kafkaProducer, err := kafka.CreateProducer(appConfig.KafkaConfig.ProducerConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	kafkaConsumer, err := kafka.CreateConsumer(appConfig.KafkaConfig.ConsumerConfig)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	kafkaConsumer.Setup()
+	//TaskProcessor
+	//	taskProcessor := service.NewTaskProcessor(kafkaProducer, kafkaConsumer.PartitionAssignment)
+
+	//Container pool connection
+	//Setup S3
+
+	return kafkaConsumer, kafkaProducer, nil
+}

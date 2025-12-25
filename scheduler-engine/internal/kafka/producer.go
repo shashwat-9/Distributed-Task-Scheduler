@@ -3,49 +3,16 @@ package kafka
 import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"log/slog"
+	"scheduler-engine/internal/config"
 )
 
 type Producer struct {
-	BootstrapServers                 string
-	ClientID                         string
-	Acks                             string
-	DeliveryTimeoutMs                int
-	RequestTimeoutMs                 int
-	LingerMs                         int
-	QueueBufferingMaxKbytes          int
-	CompressionType                  string
-	BatchSize                        int
-	MaxInFlightRequestsPerConnection int
-	MaxRequestSize                   int
-	EnableIdempotence                bool
-	KafkaProducer                    *kafka.Producer
-}
-
-func (producer *Producer) createProducer() {
-	slog.Info("Creating producer")
-	var err error
-	producer.KafkaProducer, err = kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers":                     producer.BootstrapServers,
-		"client.id":                             producer.ClientID,
-		"acks":                                  producer.Acks,
-		"delivery.timeout.ms":                   producer.DeliveryTimeoutMs,
-		"request.timeout.ms":                    producer.RequestTimeoutMs,
-		"linger.ms":                             producer.LingerMs,
-		"queue.buffering.max.kbytes":            producer.QueueBufferingMaxKbytes,
-		"compression.type":                      producer.CompressionType,
-		"batch.size":                            producer.BatchSize,
-		"max.in.flight.requests.per.connection": producer.MaxInFlightRequestsPerConnection,
-		"max.request.size":                      producer.MaxRequestSize,
-		"enable.idempotence":                    producer.EnableIdempotence,
-	})
-
-	if err != nil {
-		panic(err)
-	}
+	Config        config.KafkaProducerConfig
+	QueryProducer *kafka.Producer
 }
 
 func (producer *Producer) Produce(topic, key, value string) {
-	err := producer.KafkaProducer.Produce(&kafka.Message{
+	err := producer.QueryProducer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Key:            []byte(key),
 		Value:          []byte(value),
@@ -55,9 +22,35 @@ func (producer *Producer) Produce(topic, key, value string) {
 	}
 }
 
-func (producer *Producer) Setup() {
-	producer.createProducer()
+//func (producer *Producer) Setup() {
+//	go producer.Produce("test", "testkey", "testval")
+//	slog.Info("Message sent")
+//}
+
+func CreateProducer(producerConfig config.KafkaProducerConfig) (*Producer, error) {
+	slog.Info("Creating producer")
+	kafkaProducer, err := kafka.NewProducer(&kafka.ConfigMap{
+		"bootstrap.servers":                     producerConfig.BootstrapServers,
+		"client.id":                             producerConfig.ClientID,
+		"acks":                                  producerConfig.Acks,
+		"delivery.timeout.ms":                   producerConfig.DeliveryTimeoutMs,
+		"request.timeout.ms":                    producerConfig.RequestTimeoutMs,
+		"linger.ms":                             producerConfig.LingerMs,
+		"queue.buffering.max.kbytes":            producerConfig.QueueBufferingMaxKbytes,
+		"compression.type":                      producerConfig.CompressionType,
+		"batch.size":                            producerConfig.BatchSize,
+		"max.in.flight.requests.per.connection": producerConfig.MaxInFlightRequestsPerConnection,
+		"max.request.size":                      producerConfig.MaxRequestSize,
+		"enable.idempotence":                    producerConfig.EnableIdempotence,
+	})
+
+	producer := &Producer{Config: producerConfig, QueryProducer: kafkaProducer}
+
+	if err != nil {
+		return nil, err
+	}
+
 	slog.Info("Producer created")
-	go producer.Produce("test", "testkey", "testval")
-	slog.Info("Message sent")
+
+	return producer, nil
 }

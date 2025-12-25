@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -10,10 +11,10 @@ import (
 
 func main() {
 	slog.Info("Starting server")
-	err := internal.Init()
+	kafkaConsumer, kafkaProduer, err := internal.Init()
 
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	quit := make(chan os.Signal, 1)
@@ -28,6 +29,12 @@ func main() {
 	<-quit
 
 	slog.Info("Shutting down server...")
+
+	err = kafkaConsumer.Close()
+	if err != nil {
+		//sleep an retry
+	}
+	kafkaProduer.QueryProducer.Close()
 	// You can add any cleanup logic here (e.g., flushing producer).
 	slog.Info("Server shut down gracefully.")
 }
