@@ -48,7 +48,7 @@ type AppConfig struct {
 func LoadConfigAndValidate() (AppConfig, error) {
 	var appConfig AppConfig
 
-	log.Println("Setting up config")
+	log.Println("Setting up configurations from config.yaml")
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")

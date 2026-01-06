@@ -53,19 +53,24 @@ func (consumer *Consumer) consume() {
 				consumer.PartitionAssignment = make(map[int32]chan *kafka.Message)
 			}
 			for i := 0; i < len(e.Partitions); i++ {
-				consumer.PartitionAssignment[e.Partitions[i].Partition] = consumer.jobs[i%*consumer.Config.WorkerPoolSize]
+				consumer.PartitionAssignment[e.Partitions[i].Partition] = make(chan *kafka.Message, *consumer.Config.WorkerPoolSize)
+				//start a new goroutine to process the messages
 			}
 			err := consumer.KafkaConsumer.Assign(e.Partitions)
 
 			if err != nil {
+				slog.Error("Failed to assign partitions: %v", err)
 				return
 			}
 		case kafka.RevokedPartitions:
 			for _, p := range e.Partitions {
+
 				delete(consumer.PartitionAssignment, p.Partition)
+				//wait for the clearance of the related channels
 			}
 			err := consumer.KafkaConsumer.Unassign()
 			if err != nil {
+				slog.Error("Failed to unassign partitions: %v", err)
 				return
 			}
 		default:
@@ -101,13 +106,14 @@ func (consumer *Consumer) startWorkerPool() {
 }
 
 func (consumer *Consumer) Close() error {
+	slog.Info("Stopping Message Consumption")
 	consumer.run = false
-
-	slog.Info("Closing consumer")
-	err := consumer.KafkaConsumer.Close()
 
 	slog.Info("Waiting for consumer to finish")
 	consumer.wg.Wait()
+
+	slog.Info("Closing consumer")
+	err := consumer.KafkaConsumer.Close()
 
 	if err != nil {
 		slog.Error("Failed to close consumer: %v", err)
