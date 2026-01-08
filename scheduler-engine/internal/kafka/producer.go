@@ -30,18 +30,18 @@ func (producer *Producer) Produce(topic, key, value string) {
 func CreateProducer(producerConfig config.KafkaProducerConfig) (*Producer, error) {
 	slog.Info("Creating producer")
 	kafkaProducer, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers":                     producerConfig.BootstrapServers,
-		"client.id":                             producerConfig.ClientID,
-		"acks":                                  producerConfig.Acks,
-		"delivery.timeout.ms":                   producerConfig.DeliveryTimeoutMs,
-		"request.timeout.ms":                    producerConfig.RequestTimeoutMs,
-		"linger.ms":                             producerConfig.LingerMs,
-		"queue.buffering.max.kbytes":            producerConfig.QueueBufferingMaxKbytes,
-		"compression.type":                      producerConfig.CompressionType,
-		"batch.size":                            producerConfig.BatchSize,
-		"max.in.flight.requests.per.connection": producerConfig.MaxInFlightRequestsPerConnection,
-		"max.request.size":                      producerConfig.MaxRequestSize,
-		"enable.idempotence":                    producerConfig.EnableIdempotence,
+		"bootstrap.servers":          producerConfig.BootstrapServers,
+		"client.id":                  producerConfig.ClientID,
+		"acks":                       producerConfig.Acks,
+		"delivery.timeout.ms":        *producerConfig.DeliveryTimeoutMs,
+		"request.timeout.ms":         *producerConfig.RequestTimeoutMs,
+		"linger.ms":                  *producerConfig.LingerMs,
+		"queue.buffering.max.kbytes": *producerConfig.QueueBufferingMaxKbytes,
+		//"compression.type":                      producerConfig.CompressionType,
+		"batch.size":                            *producerConfig.BatchSize,
+		"max.in.flight.requests.per.connection": *producerConfig.MaxInFlightRequestsPerConnection,
+		//"max.request.size":                      *producerConfig.MaxRequestSize,
+		"enable.idempotence": *producerConfig.EnableIdempotence,
 	})
 
 	producer := &Producer{Config: producerConfig, QueryProducer: kafkaProducer}

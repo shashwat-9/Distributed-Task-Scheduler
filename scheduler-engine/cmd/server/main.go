@@ -10,8 +10,8 @@ import (
 )
 
 func main() {
-	slog.Info("Starting server")
-	kafkaConsumer, kafkaProduer, err := internal.Init()
+	slog.Info("Initializing server...")
+	kafkaConsumer, kafkaProducer, err := internal.Init()
 
 	if err != nil {
 		log.Fatal(err)
@@ -19,13 +19,10 @@ func main() {
 
 	quit := make(chan os.Signal, 1)
 
-	// 2. Tell the OS to notify our channel for SIGINT (Ctrl+C) or SIGTERM.
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	slog.Info("Server is running. Press Ctrl+C to exit.")
 
-	// 3. Block the main function here, waiting for a signal.
-	//    Your consumer will run in the background during this time.
 	<-quit
 
 	slog.Info("Shutting down server...")
@@ -34,7 +31,7 @@ func main() {
 	if err != nil {
 		//sleep an retry
 	}
-	kafkaProduer.QueryProducer.Close()
+	kafkaProducer.QueryProducer.Close()
 	// You can add any cleanup logic here (e.g., flushing producer).
 	slog.Info("Server shut down gracefully.")
 }
