@@ -3,12 +3,12 @@ kafka:
     bootstrap_servers: "localhost:9092"
     group_id: "mygroup"
     topic:
-      - "events"
+      - "testScheduledJob"
     enable_auto_commit: false
     auto_offset_reset: "earliest"
     session_timeout_ms: 10000
     heartbeat_interval_ms: 3000
-    max_poll_interval_ms: 300000
+    max_poll_interval_ms: 30000
     fetch_min_bytes: 1
     fetch_max_wait_ms: 500
     worker_pool_size: 4
