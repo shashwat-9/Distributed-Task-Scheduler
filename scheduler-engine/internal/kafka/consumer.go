@@ -1,6 +1,7 @@
 package kafka
 
 import (
+	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"log/slog"
 	"scheduler-engine/internal/config"
@@ -20,7 +21,48 @@ type Consumer struct {
 }
 
 func (consumer *Consumer) Subscribe() error {
-	err := consumer.KafkaConsumer.SubscribeTopics(consumer.Config.Topic, nil)
+	err := consumer.KafkaConsumer.SubscribeTopics(consumer.Config.Topic, func(c *kafka.Consumer, ev kafka.Event) error {
+		switch e := ev.(type) {
+
+		case kafka.AssignedPartitions:
+			slog.Info("Received assignment")
+			for i := 0; i < len(e.Partitions); i++ {
+				slog.Info(fmt.Sprintf("Assigned partition: %v", e.Partitions[i].Partition))
+				consumer.PartitionAssignmentMap[e.Partitions[i].Partition] = PartitionAssignment{
+					TaskChannel: make(chan *kafka.Message, *consumer.Config.WorkerPoolSize),
+					Completion:  &sync.WaitGroup{},
+				}
+				consumer.PartitionAssignmentMap[e.Partitions[i].Partition].Completion.Add(1)
+				go func(partitionMap map[int32]PartitionAssignment, i int32) {
+					for val := range partitionMap[i].TaskChannel {
+						slog.Info(fmt.Sprintf("Processing message: %v", val))
+						//process message
+					}
+					partitionMap[i].Completion.Done()
+				}(consumer.PartitionAssignmentMap, e.Partitions[i].Partition)
+			}
+			err := consumer.KafkaConsumer.IncrementalAssign(e.Partitions)
+
+			if err != nil {
+				slog.Error(fmt.Sprintf("Failed to assign partitions: %v", err))
+			}
+		case kafka.RevokedPartitions:
+			for _, p := range e.Partitions {
+				slog.Info(fmt.Sprintf("Revoked partition: %v", p.Partition))
+				slog.Info(fmt.Sprintf("Closing channel for partition %v", p.Partition))
+				close(consumer.PartitionAssignmentMap[p.Partition].TaskChannel)
+				consumer.PartitionAssignmentMap[p.Partition].Completion.Wait()
+				slog.Info(fmt.Sprintf("Closed channel for partition %v", p.Partition))
+				delete(consumer.PartitionAssignmentMap, p.Partition)
+			}
+			err := consumer.KafkaConsumer.IncrementalUnassign(e.Partitions)
+
+			if err != nil {
+				slog.Error(fmt.Sprintf("Failed to unassign partitions: %v", err))
+			}
+		}
+		return nil
+	})
 
 	if err != nil {
 		return err
@@ -40,9 +82,6 @@ func (consumer *Consumer) consume() {
 		switch e := msg.(type) {
 		case *kafka.Message:
 			slog.Info("Received message: ", string(e.Value))
-			if consumer.PartitionAssignmentMap[e.TopicPartition.Partition].TaskChannel == nil {
-				slog.Info("Oh GOd")
-			}
 			slog.Info("Sending message to channel for partition %v", e.TopicPartition.Partition)
 			consumer.PartitionAssignmentMap[e.TopicPartition.Partition].TaskChannel <- e
 			slog.Info("Sent message to channel for partition %v", e.TopicPartition.Partition)
@@ -51,46 +90,10 @@ func (consumer *Consumer) consume() {
 			if e.IsFatal() {
 				//panic(e)
 			}
-		case kafka.AssignedPartitions:
-			slog.Info("Received assignment")
-			for i := 0; i < len(e.Partitions); i++ {
-				slog.Info("Assigned partition: %v", e.Partitions[i].Partition)
-				consumer.PartitionAssignmentMap[e.Partitions[i].Partition] = PartitionAssignment{
-					TaskChannel: make(chan *kafka.Message, *consumer.Config.WorkerPoolSize),
-					Completion:  &sync.WaitGroup{},
-				}
-				consumer.PartitionAssignmentMap[e.Partitions[i].Partition].Completion.Add(1)
-				go func(partitionMap map[int32]PartitionAssignment, i int32) {
-					for val := range partitionMap[i].TaskChannel {
-						slog.Info("Processing message: %v", val)
-						//process message
-					}
-					partitionMap[i].Completion.Done()
-				}(consumer.PartitionAssignmentMap, e.Partitions[i].Partition)
-			}
-			err := consumer.KafkaConsumer.Assign(e.Partitions)
-
-			if err != nil {
-				slog.Error("Failed to assign partitions: %v", err)
-				return
-			}
-		case kafka.RevokedPartitions:
-			for _, p := range e.Partitions {
-				slog.Info("Revoked partition: %v", p.Partition)
-				slog.Info("Closing channel for partition %v", p.Partition)
-				close(consumer.PartitionAssignmentMap[p.Partition].TaskChannel)
-				consumer.PartitionAssignmentMap[p.Partition].Completion.Wait()
-				slog.Info("Closed channel for partition %v", p.Partition)
-				delete(consumer.PartitionAssignmentMap, p.Partition)
-			}
-			err := consumer.KafkaConsumer.Unassign()
-			if err != nil {
-				slog.Error("Failed to unassign partitions: %v", err)
-				return
-			}
 		default:
-
-			slog.Info("Ignored message")
+			if e != nil {
+				slog.Info(fmt.Sprint("Ignored message: %v", e))
+			}
 		}
 	}
 }
@@ -100,17 +103,17 @@ func (consumer *Consumer) Close() error {
 	consumer.run = false
 
 	for partition, assignment := range consumer.PartitionAssignmentMap {
-		slog.Info("Closing channel for partition %v", partition)
+		slog.Info(fmt.Sprintf("Closing channel for partition %v", partition))
 		close(assignment.TaskChannel)
 		assignment.Completion.Wait()
-		slog.Info("Closed channel for partition %v", partition)
+		slog.Info(fmt.Sprintf("Closed channel for partition %v", partition))
 	}
 
 	slog.Info("Closing consumer")
 	err := consumer.KafkaConsumer.Close()
 
 	if err != nil {
-		slog.Error("Failed to close consumer: %v", err)
+		slog.Error(fmt.Sprintf("Failed to close consumer: %v", err))
 		return err
 	} else {
 		slog.Info("Closed consumer successfully")
@@ -130,19 +133,20 @@ func (consumer *Consumer) Setup() error {
 	return nil
 }
 
-func CreateConsumer(consumerConfig config.KafkaConsumerConfig) (*Consumer, error) {
+func New(consumerConfig config.KafkaConsumerConfig) (*Consumer, error) {
 	kafkaConsumer, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":     consumerConfig.BootstrapServers,
-		"group.id":              consumerConfig.GroupId,
-		"auto.offset.reset":     consumerConfig.AutoOffsetReset,
-		"session.timeout.ms":    *consumerConfig.SessionTimeoutMs,
-		"heartbeat.interval.ms": *consumerConfig.HeartbeatIntervalMs,
-		"max.poll.interval.ms":  *consumerConfig.MaxPollIntervalMs,
-		"fetch.min.bytes":       *consumerConfig.FetchMinBytes,
-		//"fetch.max.wait.ms":             *consumerConfig.FetchMaxWaitMs,
+		"bootstrap.servers":               consumerConfig.BootstrapServers,
+		"group.id":                        consumerConfig.GroupId,
+		"auto.offset.reset":               consumerConfig.AutoOffsetReset,
+		"session.timeout.ms":              *consumerConfig.SessionTimeoutMs,
+		"heartbeat.interval.ms":           *consumerConfig.HeartbeatIntervalMs,
+		"max.poll.interval.ms":            *consumerConfig.MaxPollIntervalMs,
+		"fetch.min.bytes":                 *consumerConfig.FetchMinBytes,
 		"enable.auto.commit":              *consumerConfig.EnableAutoCommit,
 		"go.application.rebalance.enable": true,
+		"go.events.channel.enable":        false,
 		"partition.assignment.strategy":   "cooperative-sticky",
+		//"debug":                         "consumer",
 	})
 
 	if err != nil {
