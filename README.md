@@ -1,7 +1,7 @@
 # Distributed-Task-Scheduler
 
 ## Architecture Diagram
-![ArchitectureDiagram of the Distributed-Task-Scheduler](ArchitectureDiagram.png)
+![ArchitectureDiagram of the Distributed-Task-Scheduler](./ArchitectureDiagram.png)
 
 Basic Requirements:
  - All tasks must be executed at the scheduled time, before the permitted delays.
