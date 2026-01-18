@@ -29,9 +29,8 @@ func main() {
 
 	err = kafkaConsumer.Close()
 	if err != nil {
-		//sleep an retry
+		slog.Error("Error", err)
 	}
 	kafkaProducer.QueryProducer.Close()
-	// You can add any cleanup logic here (e.g., flushing producer).
 	slog.Info("Server shut down gracefully.")
 }

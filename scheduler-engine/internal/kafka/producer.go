@@ -7,8 +7,9 @@ import (
 )
 
 type Producer struct {
-	Config        config.KafkaProducerConfig
-	QueryProducer *kafka.Producer
+	Config                config.KafkaProducerConfig
+	QueryProducer         *kafka.Producer
+	TransactionalProducer *kafka.Producer
 }
 
 func (producer *Producer) Produce(topic, key, value string) {
@@ -20,6 +21,9 @@ func (producer *Producer) Produce(topic, key, value string) {
 	if err != nil {
 		return
 	}
+}
+
+func (producer *Producer) ProduceTransactional(topic, key, value string) {
 }
 
 //func (producer *Producer) Setup() {
@@ -40,8 +44,7 @@ func CreateProducer(producerConfig config.KafkaProducerConfig) (*Producer, error
 		//"compression.type":                      producerConfig.CompressionType,
 		"batch.size":                            *producerConfig.BatchSize,
 		"max.in.flight.requests.per.connection": *producerConfig.MaxInFlightRequestsPerConnection,
-		//"max.request.size":                      *producerConfig.MaxRequestSize,
-		"enable.idempotence": *producerConfig.EnableIdempotence,
+		"enable.idempotence":                    *producerConfig.EnableIdempotence,
 	})
 
 	producer := &Producer{Config: producerConfig, QueryProducer: kafkaProducer}
