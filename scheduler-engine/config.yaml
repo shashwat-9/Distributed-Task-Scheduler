@@ -14,7 +14,7 @@ kafka:
     worker_pool_size: 4
   producer:
     bootstrap_servers: "localhost:9092"
-    topic: "events"
+    topic: "sentevents"
     client_id: "my-app-producer"
     acks: "all"
     delivery_timeout_ms: 120000

@@ -17,6 +17,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	kafkaProducer.Produce("events", "testkey", "testval")
 	quit := make(chan os.Signal, 1)
 
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
