@@ -23,15 +23,7 @@ func (producer *Producer) Produce(topic, key, value string) {
 	}
 }
 
-func (producer *Producer) ProduceTransactional(topic, key, value string) {
-}
-
-//func (producer *Producer) Setup() {
-//	go producer.Produce("test", "testkey", "testval")
-//	slog.Info("Message sent")
-//}
-
-func CreateProducer(producerConfig config.KafkaProducerConfig) (*Producer, error) {
+func NewProducer(producerConfig config.KafkaProducerConfig) (*Producer, error) {
 	slog.Info("Creating producer")
 	kafkaProducer, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers":          producerConfig.BootstrapServers,

@@ -17,12 +17,12 @@ func Init() (*kafka.Consumer, *kafka.Producer, error) {
 
 	log.Println(appConfig)
 
-	kafkaProducer, err := kafka.CreateProducer(appConfig.KafkaConfig.ProducerConfig)
+	kafkaProducer, err := kafka.NewProducer(appConfig.KafkaConfig.ProducerConfig)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	kafkaConsumer, err := kafka.CreateConsumer(appConfig.KafkaConfig.ConsumerConfig)
+	kafkaConsumer, err := kafka.New(appConfig.KafkaConfig.ConsumerConfig)
 
 	if err != nil {
 		return nil, nil, err

@@ -33,13 +33,15 @@ func (consumer *Consumer) Subscribe() error {
 					Completion:  &sync.WaitGroup{},
 				}
 				consumer.PartitionAssignmentMap[e.Partitions[i].Partition].Completion.Add(1)
-				go func(partitionMap map[int32]PartitionAssignment, i int32) {
-					for val := range partitionMap[i].TaskChannel {
+				go func(partitionAssignmentDetails PartitionAssignment) {
+					for val := range partitionAssignmentDetails.TaskChannel {
 						slog.Info(fmt.Sprintf("Processing message: %v", val))
 						//process message
+						//pq.add(val) -> synchronized
+						//producer.Produce(val)
 					}
-					partitionMap[i].Completion.Done()
-				}(consumer.PartitionAssignmentMap, e.Partitions[i].Partition)
+					partitionAssignmentDetails.Completion.Done()
+				}(consumer.PartitionAssignmentMap[e.Partitions[i].Partition])
 			}
 			err := consumer.KafkaConsumer.IncrementalAssign(e.Partitions)
 
