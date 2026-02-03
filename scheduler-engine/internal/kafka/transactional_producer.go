@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"log"
 	"log/slog"
 	"scheduler-engine/internal/config"
 )
@@ -11,13 +12,23 @@ type TransactionalProducer struct {
 	config   config.KafkaProducerConfig
 }
 
-func (transactionalProducer TransactionalProducer) Produce(topic, key, value string) {
+func (transactionalProducer TransactionalProducer) Produce(topic, key, value string, offset int) {
 	slog.Info("Producing message")
+	transactionalProducer.producer.BeginTransaction()
 	transactionalProducer.producer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Key:            []byte(key),
 		Value:          []byte(value),
 	}, nil)
+
+	//offsets := map[ck.TopicPartition]ck.Offset{
+	//	e.TopicPartition: e.TopicPartition.Offset + 1,
+	//}
+
+	//transactionalProducer.producer.SendOffsetsToTransaction(offsets, consumer.string());
+
+	transactionalProducer.producer.CommitTransaction(nil)
+
 }
 
 func NewTransactionalProducer(transactionalProducerConfig config.KafkaProducerConfig) (TransactionalProducer, error) {
@@ -37,5 +48,13 @@ func NewTransactionalProducer(transactionalProducerConfig config.KafkaProducerCo
 	if err != nil {
 		return TransactionalProducer{}, err
 	}
+
+	log.Println("initiating transactional producer")
+	err = producer.InitTransactions(nil)
+
+	if err != nil {
+		return TransactionalProducer{}, err
+	}
+
 	return TransactionalProducer{producer: producer, config: transactionalProducerConfig}, nil
 }

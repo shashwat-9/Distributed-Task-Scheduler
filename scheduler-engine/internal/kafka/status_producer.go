@@ -6,14 +6,13 @@ import (
 	"scheduler-engine/internal/config"
 )
 
-type Producer struct {
-	Config                config.KafkaProducerConfig
-	QueryProducer         *kafka.Producer
-	TransactionalProducer *kafka.Producer
+type StatusProducer struct {
+	Config         config.KafkaProducerConfig
+	StatusProducer *kafka.Producer
 }
 
-func (producer *Producer) Produce(topic, key, value string) {
-	err := producer.QueryProducer.Produce(&kafka.Message{
+func (producer *StatusProducer) Produce(topic, key, value string) {
+	err := producer.StatusProducer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Key:            []byte(key),
 		Value:          []byte(value),
@@ -23,7 +22,7 @@ func (producer *Producer) Produce(topic, key, value string) {
 	}
 }
 
-func NewProducer(producerConfig config.KafkaProducerConfig) (*Producer, error) {
+func NewProducer(producerConfig config.KafkaProducerConfig) (*StatusProducer, error) {
 	slog.Info("Creating producer")
 	kafkaProducer, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers":          producerConfig.BootstrapServers,
@@ -39,7 +38,7 @@ func NewProducer(producerConfig config.KafkaProducerConfig) (*Producer, error) {
 		"enable.idempotence":                    *producerConfig.EnableIdempotence,
 	})
 
-	producer := &Producer{Config: producerConfig, QueryProducer: kafkaProducer}
+	producer := &StatusProducer{Config: producerConfig, StatusProducer: kafkaProducer}
 
 	if err != nil {
 		return nil, err
