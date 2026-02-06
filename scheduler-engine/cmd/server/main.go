@@ -11,15 +11,15 @@ import (
 
 func main() {
 	slog.Info("Initializing server...")
-	kafkaConsumer, kafkaProducer, err := internal.Init()
+	kafkaConsumer, kafkaProducer, kafkaTransactionalProducer, err := internal.Init()
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	kafkaProducer.Produce("events", "testkey", "testval")
 	quit := make(chan os.Signal, 1)
 
+	kafkaTransactionalProducer.Produce("events", "testkey", "testval", 0)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	slog.Info("Server is running. Press Ctrl+C to exit.")
@@ -32,6 +32,6 @@ func main() {
 	if err != nil {
 		slog.Error("Error", err)
 	}
-	kafkaProducer.QueryProducer.Close()
+	kafkaProducer.StatusProducer.Close()
 	slog.Info("Server shut down gracefully.")
 }
