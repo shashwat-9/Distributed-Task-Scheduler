@@ -31,7 +31,7 @@ func (transactionalProducer TransactionalProducer) Produce(topic, key, value str
 
 }
 
-func NewTransactionalProducer(transactionalProducerConfig config.KafkaProducerConfig) (TransactionalProducer, error) {
+func NewTransactionalProducer(transactionalProducerConfig config.KafkaProducerConfig) (*TransactionalProducer, error) {
 	producer, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers":                     transactionalProducerConfig.BootstrapServers,
 		"client.id":                             transactionalProducerConfig.ClientID,
@@ -46,15 +46,15 @@ func NewTransactionalProducer(transactionalProducerConfig config.KafkaProducerCo
 	})
 
 	if err != nil {
-		return TransactionalProducer{}, err
+		return &TransactionalProducer{}, err
 	}
 
 	log.Println("initiating transactional producer")
 	err = producer.InitTransactions(nil)
 
 	if err != nil {
-		return TransactionalProducer{}, err
+		return &TransactionalProducer{}, err
 	}
 
-	return TransactionalProducer{producer: producer, config: transactionalProducerConfig}, nil
+	return &TransactionalProducer{producer: producer, config: transactionalProducerConfig}, nil
 }

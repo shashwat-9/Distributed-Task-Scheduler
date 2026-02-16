@@ -1,37 +1,72 @@
 package main
 
 import (
-	"log"
-	"log/slog"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 	"os"
 	"os/signal"
 	"scheduler-engine/internal"
+	"scheduler-engine/internal/config"
 	"syscall"
 )
 
 func main() {
-	slog.Info("Initializing server...")
-	kafkaConsumer, kafkaProducer, kafkaTransactionalProducer, err := internal.Init()
+	logger := getLogger()
 
+	defer func(logger *zap.Logger) {
+		err := logger.Sync()
+		if err != nil {
+			logger.Fatal(err.Error())
+		}
+	}(logger)
+
+	//load configurations
+	logger.Info("Loading configurations")
+	appConfig, err := config.LoadConfigAndValidate(logger.Named("Config Loader"))
 	if err != nil {
-		log.Fatal(err)
+		logger.Fatal("Error Loading config", zap.Error(err))
+	}
+	logger.Info("App configurations", zap.Any("appConfig", appConfig))
+
+	//Initialize application
+	logger.Info("Initializing application")
+	appState, err := internal.Init(appConfig, logger.Named("Application Initializer"))
+	if err != nil {
+		logger.Fatal("Error initializing application", zap.Error(err))
 	}
 
+	//Start server
+	logger.Info("Starting service")
+	err = appState.KafkaConsumer.Setup()
+	if err != nil {
+		logger.Fatal("Error starting message consumption", zap.Error(err))
+	}
+
+	//Shutdown Server
 	quit := make(chan os.Signal, 1)
-
-	kafkaTransactionalProducer.Produce("events", "testkey", "testval", 0)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	slog.Info("Server is running. Press Ctrl+C to exit.")
-
 	<-quit
+	logger.Info("Shutting down server gracefully")
 
-	slog.Info("Shutting down server...")
+}
 
-	err = kafkaConsumer.Close()
-	if err != nil {
-		slog.Error("Error", err)
+func getLogger() *zap.Logger {
+	lumberjackLogger := &lumberjack.Logger{
+		Filename:   "logs/app.log",
+		MaxSize:    10,
+		MaxBackups: 5,
+		MaxAge:     28,
+		Compress:   false,
 	}
-	kafkaProducer.StatusProducer.Close()
-	slog.Info("Server shut down gracefully.")
+
+	cfg := zap.NewProductionEncoderConfig()
+	cfg.TimeKey = "time"
+	cfg.EncodeTime = zapcore.ISO8601TimeEncoder
+
+	return zap.New(zapcore.NewCore(
+		zapcore.NewJSONEncoder(cfg),
+		zapcore.AddSync(lumberjackLogger),
+		zap.InfoLevel), zap.AddCaller())
+
 }

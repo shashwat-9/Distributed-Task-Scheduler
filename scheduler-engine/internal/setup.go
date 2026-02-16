@@ -1,39 +1,38 @@
 package internal
 
 import (
-	"log"
-	"log/slog"
+	"go.uber.org/zap"
 	"scheduler-engine/internal/config"
 	"scheduler-engine/internal/kafka"
 )
 
-func Init() (*kafka.Consumer, *kafka.Producer, error) {
-	slog.Info("Setting up application")
-	appConfig, err := config.LoadConfigAndValidate()
+type AppState struct {
+	KafkaConsumer              *kafka.Consumer
+	KafkaStatusProducer        *kafka.StatusProducer
+	KafkaTransactionalProducer *kafka.TransactionalProducer
+}
 
+func Init(appConfig config.AppConfig, logger *zap.Logger) (AppState, error) {
+	logger.Info("Creating Kafka Producers and Consumers")
+
+	appState := AppState{}
+	producer, err := kafka.NewProducer(appConfig.KafkaConfig.ProducerConfig)
 	if err != nil {
-		return nil, nil, err
+		return appState, err
 	}
+	appState.KafkaStatusProducer = producer
 
-	log.Println(appConfig)
-
-	kafkaProducer, err := kafka.NewProducer(appConfig.KafkaConfig.ProducerConfig)
+	consumer, err := kafka.New(appConfig.KafkaConfig.ConsumerConfig)
 	if err != nil {
-		return nil, nil, err
+		return appState, err
 	}
+	appState.KafkaConsumer = consumer
 
-	kafkaConsumer, err := kafka.New(appConfig.KafkaConfig.ConsumerConfig)
-
+	transactionalProducer, err := kafka.NewTransactionalProducer(appConfig.KafkaConfig.ProducerConfig)
 	if err != nil {
-		return nil, nil, err
+		return appState, err
 	}
+	appState.KafkaTransactionalProducer = transactionalProducer
 
-	kafkaConsumer.Setup()
-	//TaskProcessor
-	//	taskProcessor := service.NewTaskProcessor(kafkaProducer, kafkaConsumer.PartitionAssignment)
-
-	//Container pool connection
-	//Setup S3
-
-	return kafkaConsumer, kafkaProducer, nil
+	return appState, nil
 }
