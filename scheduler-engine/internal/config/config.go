@@ -3,7 +3,7 @@ package config
 import (
 	"github.com/go-playground/validator/v10"
 	"github.com/spf13/viper"
-	"log"
+	"go.uber.org/zap"
 )
 
 type KafkaConsumerConfig struct {
@@ -45,10 +45,10 @@ type AppConfig struct {
 	KafkaConfig KafkaConfig `mapstructure:"kafka" validate:"required"`
 }
 
-func LoadConfigAndValidate() (AppConfig, error) {
+func LoadConfigAndValidate(logger *zap.Logger) (AppConfig, error) {
 	var appConfig AppConfig
 
-	log.Println("Setting up configurations from config.yaml")
+	logger.Info("Setting up configurations from config.yaml")
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
@@ -68,4 +68,8 @@ func LoadConfigAndValidate() (AppConfig, error) {
 	}
 
 	return appConfig, nil
+}
+
+func (appConfig AppConfig) String() string {
+	return ""
 }
