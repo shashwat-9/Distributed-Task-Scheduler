@@ -7,10 +7,10 @@ Basic Requirements:
  - All tasks must be executed at the scheduled time, before the permitted delays.
  - The status and logs must be accessible.
 
-Language/Framework: Java/SpringBoot  
+Language: Golang  
 Database: Postgres  
 Messaging Queue: Kafka  
-Cloud/DevOps: AWS, Linux, Docker, Kubernetes  
+Cloud/DevOps: AWS, Linux, Kubernetes
 
 There're 3 components of this system:
 1. User-Service -> For user interaction and CRUD for tasks on DB.
