@@ -36,3 +36,12 @@ func Init(appConfig config.AppConfig, logger *zap.Logger) (AppState, error) {
 
 	return appState, nil
 }
+
+func (appstate AppState) StartApplication() error {
+	err := appstate.KafkaConsumer.Setup()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
