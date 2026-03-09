@@ -38,7 +38,7 @@ func main() {
 
 	//Start server
 	logger.Info("Starting service")
-	err = appState.KafkaConsumer.Setup()
+	err = appState.StartApplication()
 	if err != nil {
 		logger.Fatal("Error starting message consumption", zap.Error(err))
 	}
