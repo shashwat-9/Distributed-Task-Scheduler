@@ -23,7 +23,7 @@ func main() {
 
 	//load configurations
 	logger.Info("Loading configurations")
-	appConfig, err := config.LoadConfigAndValidate(logger.Named("Config Loader"))
+	appConfig, err := config.LoadConfig(logger.Named("Config Loader"))
 	if err != nil {
 		logger.Fatal("Error Loading config", zap.Error(err))
 	}
