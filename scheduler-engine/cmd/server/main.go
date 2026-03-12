@@ -47,6 +47,10 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+	err = appState.ShutdownGracefully()
+	if err != nil {
+		logger.Fatal("Error shutting down server", zap.Error(err))
+	}
 	logger.Info("Shutting down server gracefully")
 
 }

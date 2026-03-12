@@ -22,7 +22,7 @@ func Init(appConfig config.AppConfig, logger *zap.Logger) (AppState, error) {
 	}
 	appState.KafkaStatusProducer = producer
 
-	consumer, err := kafka.New(appConfig.KafkaConfig.ConsumerConfig)
+	consumer, err := kafka.NewTaskConsumer(appConfig.KafkaConfig.ConsumerConfig)
 	if err != nil {
 		return appState, err
 	}
@@ -38,10 +38,15 @@ func Init(appConfig config.AppConfig, logger *zap.Logger) (AppState, error) {
 }
 
 func (appstate AppState) StartApplication() error {
-	err := appstate.KafkaConsumer.Setup()
+	err := appstate.KafkaConsumer.StartConsumption()
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func (appState AppState) ShutdownGracefully() error {
 
 	return nil
 }
