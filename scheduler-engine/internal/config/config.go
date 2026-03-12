@@ -45,7 +45,7 @@ type AppConfig struct {
 	KafkaConfig KafkaConfig `mapstructure:"kafka" validate:"required"`
 }
 
-func LoadConfigAndValidate(logger *zap.Logger) (AppConfig, error) {
+func LoadConfig(logger *zap.Logger) (AppConfig, error) {
 	var appConfig AppConfig
 
 	logger.Info("Setting up configurations from config.yaml")

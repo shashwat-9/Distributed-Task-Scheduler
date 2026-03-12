@@ -23,7 +23,7 @@ func main() {
 
 	//load configurations
 	logger.Info("Loading configurations")
-	appConfig, err := config.LoadConfigAndValidate(logger.Named("Config Loader"))
+	appConfig, err := config.LoadConfig(logger.Named("Config Loader"))
 	if err != nil {
 		logger.Fatal("Error Loading config", zap.Error(err))
 	}
@@ -47,6 +47,10 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+	err = appState.ShutdownGracefully()
+	if err != nil {
+		logger.Fatal("Error shutting down server", zap.Error(err))
+	}
 	logger.Info("Shutting down server gracefully")
 
 }
