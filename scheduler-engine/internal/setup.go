@@ -4,12 +4,14 @@ import (
 	"go.uber.org/zap"
 	"scheduler-engine/internal/config"
 	"scheduler-engine/internal/kafka"
+	"scheduler-engine/internal/service"
 )
 
 type AppState struct {
 	KafkaConsumer              *kafka.Consumer
 	KafkaStatusProducer        *kafka.StatusProducer
 	KafkaTransactionalProducer *kafka.TransactionalProducer
+	KubernetesClient           *service.KubernetesManager
 }
 
 func Init(appConfig config.AppConfig, logger *zap.Logger) (AppState, error) {
@@ -34,6 +36,13 @@ func Init(appConfig config.AppConfig, logger *zap.Logger) (AppState, error) {
 	}
 	appState.KafkaTransactionalProducer = transactionalProducer
 
+	logger.Info("Creating Kubernetes Client")
+	kubernetesClient, err := service.NewKubernetesManager()
+	if err != nil {
+		return appState, err
+	}
+
+	appState.KubernetesClient = kubernetesClient
 	return appState, nil
 }
 
@@ -47,6 +56,11 @@ func (appstate AppState) StartApplication() error {
 }
 
 func (appState AppState) ShutdownGracefully() error {
+	err := appState.KafkaConsumer.Close()
+	if err != nil {
+		return err
+	}
+	appState.KafkaStatusProducer.StatusProducer.Close()
 
 	return nil
 }

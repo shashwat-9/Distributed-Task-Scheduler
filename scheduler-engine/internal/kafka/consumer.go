@@ -39,10 +39,13 @@ func (consumer *Consumer) Subscribe() error {
 				}
 				consumer.PartitionAssignmentMap[e.Partitions[i].Partition].Completion.Add(1)
 				go func(partitionAssignmentDetails PartitionAssignment) {
-					taskProcessor := service.JobProcessor{}
+					jobProcessor := service.JobProcessor{}
 					for val := range partitionAssignmentDetails.TaskChannel {
 						consumer.Logger.Info(fmt.Sprintf("Processing message: %v", val))
-						taskProcessor.AddTask(val.Value)
+						err := jobProcessor.AddTask(val.Value)
+						if err != nil {
+							return
+						}
 					}
 					partitionAssignmentDetails.Completion.Done()
 				}(consumer.PartitionAssignmentMap[e.Partitions[i].Partition])
