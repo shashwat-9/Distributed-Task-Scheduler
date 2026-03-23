@@ -6,7 +6,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"log/slog"
 	"scheduler-engine/internal/config"
 	"scheduler-engine/internal/service"
 	"sync"
@@ -39,10 +38,10 @@ func (consumer *Consumer) Subscribe() error {
 				}
 				consumer.PartitionAssignmentMap[e.Partitions[i].Partition].Completion.Add(1)
 				go func(partitionAssignmentDetails PartitionAssignment) {
-					jobProcessor := service.JobProcessor{}
+					jobProcessor := service.ScheduledJobProcessor{}
 					for val := range partitionAssignmentDetails.TaskChannel {
 						consumer.Logger.Info(fmt.Sprintf("Processing message: %v", val))
-						err := jobProcessor.AddTask(val.Value)
+						err := jobProcessor.Process(val.Value)
 						if err != nil {
 							return
 						}
@@ -82,7 +81,6 @@ func (consumer *Consumer) Subscribe() error {
 
 func (consumer *Consumer) handleError(err error) {
 	//send to DLQ
-	slog.Error("Error: %v", err)
 }
 
 func (consumer *Consumer) consume() {

@@ -7,6 +7,8 @@ import (
 	"scheduler-engine/internal/service"
 )
 
+var appState = AppState{}
+
 type AppState struct {
 	KafkaConsumer              *kafka.Consumer
 	KafkaStatusProducer        *kafka.StatusProducer
@@ -17,7 +19,6 @@ type AppState struct {
 func Init(appConfig config.AppConfig, logger *zap.Logger) (AppState, error) {
 	logger.Info("Creating Kafka Producers and Consumers")
 
-	appState := AppState{}
 	producer, err := kafka.NewProducer(appConfig.KafkaConfig.ProducerConfig)
 	if err != nil {
 		return appState, err
@@ -37,7 +38,7 @@ func Init(appConfig config.AppConfig, logger *zap.Logger) (AppState, error) {
 	appState.KafkaTransactionalProducer = transactionalProducer
 
 	logger.Info("Creating Kubernetes Client")
-	kubernetesClient, err := service.NewKubernetesManager()
+	kubernetesClient, err := service.GetKubernetesManager()
 	if err != nil {
 		return appState, err
 	}
