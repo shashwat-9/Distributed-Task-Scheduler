@@ -55,16 +55,16 @@ func LoadConfig(logger *zap.Logger) (AppConfig, error) {
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {
-		return AppConfig{}, err
+		return appConfig, err
 	}
 
 	if err := viper.Unmarshal(&appConfig); err != nil {
-		return AppConfig{}, err
+		return appConfig, err
 	}
 
 	validate := validator.New()
 	if err := validate.Struct(appConfig); err != nil {
-		return AppConfig{}, err
+		return appConfig, err
 	}
 
 	return appConfig, nil

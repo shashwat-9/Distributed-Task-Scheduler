@@ -1,4 +1,4 @@
-package service
+package k8s
 
 import (
 	"context"
@@ -16,17 +16,24 @@ import (
 	"path/filepath"
 )
 
+var kubernetesManager KubernetesManager
+var logger *zap.Logger
+
 type KubernetesManager struct {
 	client kubernetes.Interface
-	logger *zap.Logger
 }
 
-func NewKubernetesManager() (*KubernetesManager, error) {
-	client, err := createKubernetesClient()
-	if err != nil {
-		return nil, err
+func GetKubernetesManager() (*KubernetesManager, error) {
+	if kubernetesManager.client == nil {
+		client, err := createKubernetesClient()
+		if err != nil {
+			return nil, err
+		}
+		kubernetesManager.client = client
+		logger = getLogger()
+		logger.Info("Kubernetes Manager Initialized")
 	}
-	return &KubernetesManager{client: client, logger: getLogger()}, nil
+	return &kubernetesManager, nil
 }
 
 func createKubernetesClient() (kubernetes.Interface, error) {

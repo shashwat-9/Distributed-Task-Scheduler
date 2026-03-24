@@ -3,33 +3,37 @@ package internal
 import (
 	"go.uber.org/zap"
 	"scheduler-engine/internal/config"
+	"scheduler-engine/internal/k8s"
 	"scheduler-engine/internal/kafka"
-	"scheduler-engine/internal/service"
 )
+
+var appState = AppState{}
 
 type AppState struct {
 	KafkaConsumer              *kafka.Consumer
 	KafkaStatusProducer        *kafka.StatusProducer
 	KafkaTransactionalProducer *kafka.TransactionalProducer
-	KubernetesClient           *service.KubernetesManager
+	KubernetesClient           *k8s.KubernetesManager
 }
 
 func Init(appConfig config.AppConfig, logger *zap.Logger) (AppState, error) {
 	logger.Info("Creating Kafka Producers and Consumers")
 
-	appState := AppState{}
+	logger.Info("Creating Kafka Producers")
 	producer, err := kafka.NewProducer(appConfig.KafkaConfig.ProducerConfig)
 	if err != nil {
 		return appState, err
 	}
 	appState.KafkaStatusProducer = producer
 
+	logger.Info("Creating Kafka Consumers")
 	consumer, err := kafka.NewTaskConsumer(appConfig.KafkaConfig.ConsumerConfig)
 	if err != nil {
 		return appState, err
 	}
 	appState.KafkaConsumer = consumer
 
+	logger.Info("Creating Kafka Transactional Producer")
 	transactionalProducer, err := kafka.NewTransactionalProducer(appConfig.KafkaConfig.ProducerConfig)
 	if err != nil {
 		return appState, err
@@ -37,7 +41,7 @@ func Init(appConfig config.AppConfig, logger *zap.Logger) (AppState, error) {
 	appState.KafkaTransactionalProducer = transactionalProducer
 
 	logger.Info("Creating Kubernetes Client")
-	kubernetesClient, err := service.NewKubernetesManager()
+	kubernetesClient, err := k8s.GetKubernetesManager()
 	if err != nil {
 		return appState, err
 	}
@@ -62,5 +66,6 @@ func (appState AppState) ShutdownGracefully() error {
 	}
 	appState.KafkaStatusProducer.StatusProducer.Close()
 
+	//add k8s pool closing
 	return nil
 }
