@@ -1,4 +1,4 @@
-package service
+package k8s
 
 import (
 	"context"

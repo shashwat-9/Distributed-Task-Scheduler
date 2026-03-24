@@ -1,26 +1,27 @@
-package service
+package Processor
 
 import (
 	"container/list"
+	"scheduler-engine/internal/k8s"
 	"scheduler-engine/internal/models"
 	"sync"
 	"time"
 )
 
-type ScheduledJobProcessor struct {
+type RebalancedJobProcessor struct {
 	jobStore          *list.List
 	mutex             sync.Mutex
 	live              bool
 	WatchList         *list.List
-	kubernetesManager *KubernetesManager
+	kubernetesManager *k8s.KubernetesManager
 }
 
-func NewJobProcessor(kubernetesManager *KubernetesManager) JobProcessor {
-	kubeManager, err := GetKubernetesManager()
+func NewRebalancedJobProcessor() *RebalancedJobProcessor {
+	kubeManager, err := k8s.GetKubernetesManager()
 	if err != nil {
 		panic(err)
 	}
-	return &ScheduledJobProcessor{
+	return &RebalancedJobProcessor{
 		jobStore:          list.New(),
 		WatchList:         list.New(),
 		mutex:             sync.Mutex{},
@@ -29,7 +30,7 @@ func NewJobProcessor(kubernetesManager *KubernetesManager) JobProcessor {
 	}
 }
 
-func (jobProcessor ScheduledJobProcessor) Process(messageValue []byte) error {
+func (jobProcessor RebalancedJobProcessor) Process(messageValue []byte) error {
 	task, err := models.UnmarshalTask(messageValue)
 	if err != nil {
 		return err
@@ -43,7 +44,7 @@ func (jobProcessor ScheduledJobProcessor) Process(messageValue []byte) error {
 	return nil
 }
 
-func (jobProcessor ScheduledJobProcessor) ExecuteTask() error {
+func (jobProcessor RebalancedJobProcessor) ExecuteTask() error {
 	for jobProcessor.live {
 		frontElement := jobProcessor.jobStore.Front()
 		if frontElement != nil {
@@ -68,6 +69,6 @@ func (jobProcessor ScheduledJobProcessor) ExecuteTask() error {
 	return nil
 }
 
-func (jobProcessor ScheduledJobProcessor) StopProcessor() {
-	jobProcessor.live = false
+func (jobProcessor RebalancedJobProcessor) StopProcessor() {
+	//jobProcessor.live = false
 }

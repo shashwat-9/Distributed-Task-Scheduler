@@ -1,4 +1,4 @@
-package service
+package Processor
 
 type JobProcessor interface {
 	Process(messageValue []byte) error
