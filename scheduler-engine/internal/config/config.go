@@ -34,6 +34,7 @@ type KafkaProducerConfig struct {
 	MaxInFlightRequestsPerConnection *int   `mapstructure:"max_in_flight_requests_per_connection" validate:"required"`
 	MaxRequestSize                   *int   `mapstructure:"max_request_size" validate:"required"`
 	EnableIdempotence                *bool  `mapstructure:"enable_idempotence" validate:"required"`
+	TransactionalID                  string `mapstructure:"transactional_id" validate:"required"`
 }
 
 type KafkaConfig struct {

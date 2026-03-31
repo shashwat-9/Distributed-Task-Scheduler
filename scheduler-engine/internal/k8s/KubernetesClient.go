@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"gopkg.in/natefinch/lumberjack.v2"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -14,6 +12,7 @@ import (
 	"k8s.io/client-go/util/homedir"
 	"os"
 	"path/filepath"
+	"scheduler-engine/internal/util"
 )
 
 var kubernetesManager KubernetesManager
@@ -30,7 +29,7 @@ func GetKubernetesManager() (*KubernetesManager, error) {
 			return nil, err
 		}
 		kubernetesManager.client = client
-		logger = getLogger()
+		logger = util.GetLogger("logs/k8s.log", 10, 5, 28)
 		logger.Info("Kubernetes Manager Initialized")
 	}
 	return &kubernetesManager, nil
@@ -98,24 +97,4 @@ func (km *KubernetesManager) DeletePod(namespace, name string) error {
 		return fmt.Errorf("error deleting pod %s/%s: %v", namespace, name, err)
 	}
 	return nil
-}
-
-func getLogger() *zap.Logger {
-	lumberjackLogger := &lumberjack.Logger{
-		Filename:   "logs/k8s.log",
-		MaxSize:    10,
-		MaxBackups: 5,
-		MaxAge:     28,
-		Compress:   false,
-	}
-
-	cfg := zap.NewProductionEncoderConfig()
-	cfg.TimeKey = "time"
-	cfg.EncodeTime = zapcore.ISO8601TimeEncoder
-
-	return zap.New(zapcore.NewCore(
-		zapcore.NewJSONEncoder(cfg),
-		zapcore.AddSync(lumberjackLogger),
-		zap.InfoLevel), zap.AddCaller())
-
 }
