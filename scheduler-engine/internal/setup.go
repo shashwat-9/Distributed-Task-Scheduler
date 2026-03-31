@@ -17,10 +17,10 @@ type AppState struct {
 }
 
 func Init(appConfig config.AppConfig, logger *zap.Logger) (AppState, error) {
-	logger.Info("Creating Kafka Producers and Consumers")
+	logger.Info("Creating Application State:")
 
 	logger.Info("Creating Kafka Producers")
-	producer, err := kafka.NewProducer(appConfig.KafkaConfig.ProducerConfig)
+	producer, err := kafka.GetProducer(appConfig.KafkaConfig.ProducerConfig)
 	if err != nil {
 		return appState, err
 	}

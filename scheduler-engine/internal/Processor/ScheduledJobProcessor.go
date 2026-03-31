@@ -75,3 +75,8 @@ func (jobProcessor ScheduledJobProcessor) ExecuteTask() error {
 func (jobProcessor ScheduledJobProcessor) StopProcessor() {
 	jobProcessor.live = false
 }
+
+func (jobProcessor ScheduledJobProcessor) Close() {
+	jobProcessor.live = false
+
+}

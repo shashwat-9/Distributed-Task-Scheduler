@@ -26,3 +26,4 @@ kafka:
     max_in_flight_requests_per_connection: 5
     max_request_size: 1048576
     enable_idempotence: true
+    transactional_id: "Task_Status_Transaction"

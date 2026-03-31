@@ -72,3 +72,6 @@ func (jobProcessor RebalancedJobProcessor) ExecuteTask() error {
 func (jobProcessor RebalancedJobProcessor) StopProcessor() {
 	//jobProcessor.live = false
 }
+
+func (jobProcessor RebalancedJobProcessor) Close() {
+}

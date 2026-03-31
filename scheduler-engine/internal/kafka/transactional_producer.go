@@ -2,10 +2,12 @@ package kafka
 
 import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"log"
-	"log/slog"
+	"go.uber.org/zap"
 	"scheduler-engine/internal/config"
+	"scheduler-engine/internal/util"
 )
+
+var transactionalProducerLogger *zap.Logger
 
 type TransactionalProducer struct {
 	producer *kafka.Producer
@@ -13,7 +15,7 @@ type TransactionalProducer struct {
 }
 
 func (transactionalProducer TransactionalProducer) Produce(topic, key, value string, offset int) {
-	slog.Info("Producing message")
+	transactionalProducerLogger.Info("Producing message")
 	transactionalProducer.producer.BeginTransaction()
 	transactionalProducer.producer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
@@ -32,6 +34,7 @@ func (transactionalProducer TransactionalProducer) Produce(topic, key, value str
 }
 
 func NewTransactionalProducer(transactionalProducerConfig config.KafkaProducerConfig) (*TransactionalProducer, error) {
+	transactionalProducerLogger = util.GetLogger("logs/kafkaTransaction.log", 10, 5, 28)
 	producer, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers":                     transactionalProducerConfig.BootstrapServers,
 		"client.id":                             transactionalProducerConfig.ClientID,
@@ -49,7 +52,7 @@ func NewTransactionalProducer(transactionalProducerConfig config.KafkaProducerCo
 		return &TransactionalProducer{}, err
 	}
 
-	log.Println("initiating transactional producer")
+	transactionalProducerLogger.Info("initiating transactional producer")
 	err = producer.InitTransactions(nil)
 
 	if err != nil {

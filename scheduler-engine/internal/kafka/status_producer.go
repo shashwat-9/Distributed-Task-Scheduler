@@ -2,9 +2,13 @@ package kafka
 
 import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"log/slog"
+	"go.uber.org/zap"
 	"scheduler-engine/internal/config"
+	"scheduler-engine/internal/util"
 )
+
+var producerLogger *zap.Logger
+var producer *kafka.Producer
 
 type StatusProducer struct {
 	Config         config.KafkaProducerConfig
@@ -22,8 +26,9 @@ func (producer *StatusProducer) Produce(topic, key, value string) {
 	}
 }
 
-func NewProducer(producerConfig config.KafkaProducerConfig) (*StatusProducer, error) {
-	slog.Info("Creating producer")
+func GetProducer(producerConfig config.KafkaProducerConfig) (*StatusProducer, error) {
+	producerLogger := util.GetLogger("logs/kafkaConsumer.log", 10, 5, 28)
+	producerLogger.Info("Creating Producer")
 	kafkaProducer, err := kafka.NewProducer(&kafka.ConfigMap{
 		"bootstrap.servers":          producerConfig.BootstrapServers,
 		"client.id":                  producerConfig.ClientID,
@@ -44,7 +49,7 @@ func NewProducer(producerConfig config.KafkaProducerConfig) (*StatusProducer, er
 		return nil, err
 	}
 
-	slog.Info("Producer created")
+	producerLogger.Info("Producer created")
 
 	return producer, nil
 }
