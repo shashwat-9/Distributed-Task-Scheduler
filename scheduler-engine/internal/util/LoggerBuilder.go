@@ -8,10 +8,10 @@ import (
 
 func GetLogger(filePath string, maxSize int, maxBackup int, maxAge int) *zap.Logger {
 	lumberjackLogger := &lumberjack.Logger{
-		Filename:   "logs/kafkaConsumer.log",
-		MaxSize:    10,
-		MaxBackups: 5,
-		MaxAge:     28,
+		Filename:   filePath,
+		MaxSize:    maxSize,
+		MaxBackups: maxBackup,
+		MaxAge:     maxAge,
 		Compress:   false,
 	}
 
