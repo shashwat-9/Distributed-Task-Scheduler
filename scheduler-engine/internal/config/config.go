@@ -6,7 +6,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type KafkaConsumerConfig struct {
+type SQSConsumerConfig struct {
 	BootstrapServers    string   `mapstructure:"bootstrap_servers" validate:"required"`
 	GroupId             string   `mapstructure:"group_id" validate:"required"`
 	Topic               []string `mapstructure:"topic" validate:"required,min=1"`
@@ -20,7 +20,7 @@ type KafkaConsumerConfig struct {
 	WorkerPoolSize      *int     `mapstructure:"worker_pool_size" validate:"required"`
 }
 
-type KafkaProducerConfig struct {
+type SQSProducerConfig struct {
 	BootstrapServers                 string `mapstructure:"bootstrap_servers" validate:"required"`
 	Topic                            string `mapstructure:"topic" validate:"required"`
 	ClientID                         string `mapstructure:"client_id" validate:"required"`
@@ -37,13 +37,13 @@ type KafkaProducerConfig struct {
 	TransactionalID                  string `mapstructure:"transactional_id" validate:"required"`
 }
 
-type KafkaConfig struct {
-	ConsumerConfig KafkaConsumerConfig `mapstructure:"consumer" validate:"required"`
-	ProducerConfig KafkaProducerConfig `mapstructure:"producer" validate:"required"`
+type SQSConfig struct {
+	ConsumerConfig SQSConsumerConfig `mapstructure:"consumer" validate:"required"`
+	ProducerConfig SQSProducerConfig `mapstructure:"producer" validate:"required"`
 }
 
 type AppConfig struct {
-	KafkaConfig KafkaConfig `mapstructure:"kafka" validate:"required"`
+	SQSConfig SQSConfig `mapstructure:"kafka" validate:"required"`
 }
 
 func LoadConfig(logger *zap.Logger) (AppConfig, error) {

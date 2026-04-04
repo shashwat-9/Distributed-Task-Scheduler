@@ -67,22 +67,6 @@ func createKubernetesClient() (kubernetes.Interface, error) {
 
 }
 
-func (km *KubernetesManager) ListPods(namespace string) (*v1.PodList, error) {
-	pods, err := km.client.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("error listing pods: %v", err)
-	}
-	return pods, nil
-}
-
-func (km *KubernetesManager) GetPod(namespace, name string) (*v1.Pod, error) {
-	pod, err := km.client.CoreV1().Pods(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("error getting pod %s/%s: %v", namespace, name, err)
-	}
-	return pod, nil
-}
-
 func (km *KubernetesManager) CreatePod(namespace string, pod *v1.Pod) (*v1.Pod, error) {
 	createdPod, err := km.client.CoreV1().Pods(namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
 	if err != nil {

@@ -3,7 +3,6 @@ module scheduler-engine
 go 1.25.4
 
 require (
-	github.com/confluentinc/confluent-kafka-go/v2 v2.13.3
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/spf13/viper v1.21.0
 	go.uber.org/zap v1.27.1
