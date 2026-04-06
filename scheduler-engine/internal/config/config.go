@@ -6,18 +6,13 @@ import (
 	"go.uber.org/zap"
 )
 
-type SQSConsumerConfig struct {
-	BootstrapServers    string   `mapstructure:"bootstrap_servers" validate:"required"`
-	GroupId             string   `mapstructure:"group_id" validate:"required"`
-	Topic               []string `mapstructure:"topic" validate:"required,min=1"`
-	EnableAutoCommit    *bool    `mapstructure:"enable_auto_commit" validate:"required"`
-	AutoOffsetReset     string   `mapstructure:"auto_offset_reset" validate:"required"`
-	SessionTimeoutMs    *int     `mapstructure:"session_timeout_ms" validate:"required"`
-	HeartbeatIntervalMs *int     `mapstructure:"heartbeat_interval_ms" validate:"required"`
-	MaxPollIntervalMs   *int     `mapstructure:"max_poll_interval_ms" validate:"required"`
-	FetchMinBytes       *int     `mapstructure:"fetch_min_bytes" validate:"required"`
-	FetchMaxWaitMs      *int     `mapstructure:"fetch_max_wait_ms" validate:"required"`
-	WorkerPoolSize      *int     `mapstructure:"worker_pool_size" validate:"required"`
+type TaskConsumerConfig struct {
+	queueURL          string `mapstructure:"queue_url" validate:"required"`
+	maxMessages       int32  `mapstructure:"max_messages" validate:"required"`
+	waitTimeSeconds   int32  `mapstructure:"wait_time_seconds" validate:"required"`
+	visibilityTimeout int32  `mapstructure:"visibility_timeout" validate:"required"`
+	workers           int    `mapstructure:"workers" validate:"required"`
+	shutdown          chan struct{}
 }
 
 type SQSProducerConfig struct {
@@ -38,8 +33,8 @@ type SQSProducerConfig struct {
 }
 
 type SQSConfig struct {
-	ConsumerConfig SQSConsumerConfig `mapstructure:"consumer" validate:"required"`
-	ProducerConfig SQSProducerConfig `mapstructure:"producer" validate:"required"`
+	ConsumerConfig TaskConsumerConfig `mapstructure:"consumer" validate:"required"`
+	ProducerConfig SQSProducerConfig  `mapstructure:"producer" validate:"required"`
 }
 
 type AppConfig struct {
