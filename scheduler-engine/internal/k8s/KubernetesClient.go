@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/util/homedir"
 	"os"
 	"path/filepath"
+	"scheduler-engine/internal/models"
 	"scheduler-engine/internal/util"
 )
 
@@ -64,6 +65,39 @@ func createKubernetesClient() (kubernetes.Interface, error) {
 	}
 
 	return client, nil
+
+}
+
+func (km *KubernetesManager) CreatePodObject(task models.Task) (*v1.Pod, error) {
+	podName := fmt.Sprintf("task-%d", task.Payload.TaskId)
+	namespace := "default" //will be changed later
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: namespace,
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:  podName,
+					Image: task.Payload.Image,
+					Command: []string{
+						"/bin/sh",
+						"-c",
+						fmt.Sprintf("echo %s > /tmp/output.txt", task.Payload.OutputLocation),
+					},
+					VolumeMounts: []v1.VolumeMount{
+						{
+							Name:      "output-volume",
+							MountPath: "/tmp",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return pod, nil
 
 }
 
