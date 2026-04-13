@@ -69,7 +69,7 @@ func createKubernetesClient() (kubernetes.Interface, error) {
 }
 
 func (km *KubernetesManager) CreatePodObject(task models.Task) (*v1.Pod, error) {
-	podName := fmt.Sprintf("task-%d", task.Payload.TaskId)
+	podName := fmt.Sprintf("task-%d-jobId-%d", task.Payload.TaskId, task.JobID)
 	namespace := "default" //will be changed later
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
