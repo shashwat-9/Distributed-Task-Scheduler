@@ -10,20 +10,19 @@ import (
 var appState = AppState{}
 
 type AppState struct {
-	TaskConsumer     *consumer.TaskConsumer
+	TaskConsumer     *consumer.SQSClient
 	KubernetesClient *k8s.KubernetesManager
 }
 
 func Init(appConfig config.AppConfig, logger *zap.Logger) (AppState, error) {
 	var err error
 	logger.Info("Creating Application State:")
-	appState.TaskConsumer, err = consumer.NewTaskConsumer(appConfig.TaskClient.ConsumerConfig)
-	if err != nil {
-		return AppState{}, err
-	}
-	logger.Info("Creating Task Producers")
 
 	logger.Info("Creating Task Consumers")
+	appState.TaskConsumer, err = consumer.NewSQSClient(appConfig.TaskClient.ConsumerConfig)
+	if err != nil {
+		return appState, err
+	}
 
 	logger.Info("Creating Kubernetes Client")
 	kubernetesClient, err := k8s.GetKubernetesManager()
@@ -37,9 +36,11 @@ func Init(appConfig config.AppConfig, logger *zap.Logger) (AppState, error) {
 
 func (appstate AppState) StartApplication() error {
 
+	appstate.TaskConsumer.Start()
 	return nil
 }
 
 func (appState AppState) ShutdownGracefully() error {
+	appState.TaskConsumer.Stop()
 	return nil
 }

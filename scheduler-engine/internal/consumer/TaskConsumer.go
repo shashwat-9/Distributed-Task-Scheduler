@@ -19,7 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 )
 
-type TaskConsumer struct {
+type SQSClient struct {
 	client         *sqs.Client
 	ConsumerConfig consumerConfig.TaskConsumerConfig
 	shutdown       chan struct{}
@@ -28,7 +28,7 @@ type TaskConsumer struct {
 	kubeClient     *k8s.KubernetesManager
 }
 
-func NewTaskConsumer(taskConsumerConfig consumerConfig.TaskConsumerConfig) (*TaskConsumer, error) {
+func NewSQSClient(taskConsumerConfig consumerConfig.TaskConsumerConfig) (*SQSClient, error) {
 	awsConfig, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithRegion(taskConsumerConfig.Region),
 	)
@@ -37,7 +37,7 @@ func NewTaskConsumer(taskConsumerConfig consumerConfig.TaskConsumerConfig) (*Tas
 	}
 
 	kubeClient, err := k8s.GetKubernetesManager()
-	return &TaskConsumer{
+	return &SQSClient{
 		client:         sqs.NewFromConfig(awsConfig),
 		ConsumerConfig: taskConsumerConfig,
 		shutdown:       make(chan struct{}),
@@ -46,7 +46,7 @@ func NewTaskConsumer(taskConsumerConfig consumerConfig.TaskConsumerConfig) (*Tas
 	}, nil
 }
 
-func (c *TaskConsumer) Start() {
+func (c *SQSClient) Start() {
 	c.logger.Info(fmt.Sprintf("Starting Task consumer with %d workers for queue: %s", c.ConsumerConfig.Workers, c.ConsumerConfig.QueueURL))
 
 	for i := 0; i < c.ConsumerConfig.Workers; i++ {
@@ -58,7 +58,7 @@ func (c *TaskConsumer) Start() {
 	c.logger.Info("Task consumer started successfully")
 }
 
-func (c *TaskConsumer) Stop() {
+func (c *SQSClient) Stop() {
 	defer func(logger *zap.Logger) {
 		err := logger.Sync()
 		if err != nil {
@@ -72,7 +72,7 @@ func (c *TaskConsumer) Stop() {
 	c.logger.Info("consumer stopped")
 }
 
-func (c *TaskConsumer) worker(workerID int) {
+func (c *SQSClient) worker(workerID int) {
 	defer c.wg.Done()
 	c.logger.Info(fmt.Sprintf("Worker %d started", workerID))
 
@@ -87,7 +87,7 @@ func (c *TaskConsumer) worker(workerID int) {
 	}
 }
 
-func (c *TaskConsumer) pollAndProcessMessages(workerID int) {
+func (c *SQSClient) pollAndProcessMessages(workerID int) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(int(c.ConsumerConfig.VisibilityTimeout))*time.Second)
 	defer cancel()
 
@@ -125,7 +125,7 @@ func (c *TaskConsumer) pollAndProcessMessages(workerID int) {
 			if err := c.processMessage(workerID, msg); err != nil {
 				c.logger.Error(fmt.Sprintf("Worker %d: Error processing message %s: %v",
 					workerID, aws.ToString(msg.MessageId), err))
-				//sendToDLQ
+				//c.sendToDLQ()
 			}
 
 			if err := c.deleteMessage(ctx, msg); err != nil {
@@ -136,7 +136,7 @@ func (c *TaskConsumer) pollAndProcessMessages(workerID int) {
 	}
 }
 
-func (c *TaskConsumer) processMessage(workerID int, sqsMsg types.Message) error {
+func (c *SQSClient) processMessage(workerID int, sqsMsg types.Message) error {
 	messageID := aws.ToString(sqsMsg.MessageId)
 	body := aws.ToString(sqsMsg.Body)
 
@@ -156,7 +156,7 @@ func (c *TaskConsumer) processMessage(workerID int, sqsMsg types.Message) error 
 	return nil
 }
 
-func (c *TaskConsumer) deleteMessage(ctx context.Context, msg types.Message) error {
+func (c *SQSClient) deleteMessage(ctx context.Context, msg types.Message) error {
 	_, err := c.client.DeleteMessage(ctx, &sqs.DeleteMessageInput{
 		QueueUrl:      &c.ConsumerConfig.QueueURL,
 		ReceiptHandle: msg.ReceiptHandle,
@@ -170,7 +170,7 @@ func (c *TaskConsumer) deleteMessage(ctx context.Context, msg types.Message) err
 	return nil
 }
 
-func (c *TaskConsumer) GetQueueAttributes() error {
+func (c *SQSClient) GetQueueAttributes() error {
 	result, err := c.client.GetQueueAttributes(context.TODO(), &sqs.GetQueueAttributesInput{
 		QueueUrl: &c.ConsumerConfig.QueueURL,
 		AttributeNames: []types.QueueAttributeName{
