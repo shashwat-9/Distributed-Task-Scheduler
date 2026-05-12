@@ -26,13 +26,4 @@ RUN mkdir -p /app /app/output && \
 # COPY execute.sh inside the app directory
 COPY scripts/execute.sh /app
 
-#Create group and user
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
-
-#Ownership and permissions changed to appuser
-RUN chown -R appuser:appuser /app && \
-    chmod -R 550 /app
-
-USER appuser
-
 WORKDIR /app
