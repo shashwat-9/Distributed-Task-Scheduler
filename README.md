@@ -9,27 +9,27 @@ Basic Requirements:
 
 Language: Golang  
 Database: Postgres  
-Messaging Queue: Kafka  
-Cloud/DevOps: AWS, Linux, Kubernetes
+Messaging Queue: AWS SQS(Simple Queue Service)
+Cloud/DevOps: AWS Storage(S3), Kubernetes
 
-There're 3 components of this system:
-1. User-Service -> For user interaction and CRUD for tasks on DB.
-2. Scheduler-Engine -> Polls DB at regular intervals for tasks, and pass the tasks to the worker-nodes.
-3. Worker-Node -> The component that's responsible for executing tasks.
+There are four components in this system:
+1. User-Service → For user interaction and CRUD for tasks on DB.
+2. Poller → Polls a specific partition of a table in the DB for upcoming tasks.
+3. Scheduler-Engine → Receives the scheduled tasks from SQS 30 seconds before the scheduled time, and spins up the pod with requirements.
+4. Status-Reporters → Updates the status of the message in the DB.
 
 ## 1. User-Service
  - Exposes endpoints to the user, for user-management and various CRUD operations on Task Tables.
  - Performs necessary checks for the Tasks submitted by the user, and also Authenticate/Authorize users.
  - Users can query the results of their tasks, and access relevant logs.
- 
-## 2. Scheduler-Engine
- - Poll Database at a regular interval for upcoming scheduled tasks.
- - Makes the necessary checks and publish tasks on the relevant kafka topic's partition.
- - Updates the Database with the results of the task execution.
- - Looks after the recovery of the tasks, missed by service/DB outage, upon startup of the service.
- 
-## 3. Worker-Node
- - Listens to Kafka's Topic-Partition for receiving Task to the worker-node.
- - Runs a Container for each task, with the provided details, to ensure safety and isolation.
- 
-#### Refer each component's README.md file for details of that component.
+
+## 2. Poller
+ - Poller service polls a specific TablePartitions per instance for scheduled tasks, `x` mins before their scheduled_time.
+ - The poller service adds a visibility delay of (x - 30) seconds to the tasks being pushed in the queue.
+
+## 3. Scheduler-Engine
+ - Receives the scheduled tasks from SQS 30 seconds before the scheduled time, and spins up the pod with requirements.
+
+## 4. Status-Reporters
+ - Polls the Status Queue of the SQS for status updates of the executed tasks.
+ - Publishes the message to the required table.
