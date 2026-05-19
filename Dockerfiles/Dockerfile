@@ -26,4 +26,6 @@ RUN mkdir -p /app /app/output && \
 # COPY execute.sh inside the app directory
 COPY scripts/execute.sh /app
 
+RUN chmod +777 /app/execute.sh
+
 WORKDIR /app
