@@ -22,13 +22,14 @@ import (
 type SQSClient struct {
 	client         *sqs.Client
 	ConsumerConfig consumerConfig.TaskConsumerConfig
+	workerCount    int
 	shutdown       chan struct{}
 	wg             sync.WaitGroup
 	logger         *zap.Logger
 	kubeClient     *k8s.KubernetesManager
 }
 
-func NewSQSClient(taskConsumerConfig consumerConfig.TaskConsumerConfig) (*SQSClient, error) {
+func NewSQSClient(taskConsumerConfig consumerConfig.TaskConsumerConfig, workerCount int) (*SQSClient, error) {
 	awsConfig, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithRegion(taskConsumerConfig.Region),
 	)
@@ -40,6 +41,7 @@ func NewSQSClient(taskConsumerConfig consumerConfig.TaskConsumerConfig) (*SQSCli
 	return &SQSClient{
 		client:         sqs.NewFromConfig(awsConfig),
 		ConsumerConfig: taskConsumerConfig,
+		workerCount:    workerCount,
 		shutdown:       make(chan struct{}),
 		logger:         util.GetLogger("logs/sqs.log", 10, 5, 28),
 		kubeClient:     kubeClient,
@@ -47,9 +49,9 @@ func NewSQSClient(taskConsumerConfig consumerConfig.TaskConsumerConfig) (*SQSCli
 }
 
 func (c *SQSClient) Start() {
-	c.logger.Info(fmt.Sprintf("Starting Task consumer with %d workers for queue: %s", c.ConsumerConfig.Workers, c.ConsumerConfig.QueueURL))
+	c.logger.Info(fmt.Sprintf("Starting Task consumer with %d workers for queue: %s", c.workerCount, c.ConsumerConfig.QueueURL))
 
-	for i := 0; i < c.ConsumerConfig.Workers; i++ {
+	for i := 0; i < c.workerCount; i++ {
 		c.logger.Info(fmt.Sprintf("Starting worker %d", i))
 		c.wg.Add(1)
 		go c.worker(i)
@@ -122,7 +124,7 @@ func (c *SQSClient) pollAndProcessMessages(workerID int) {
 			c.logger.Error(fmt.Sprintf("Worker %d: Context deadline exceeded", workerID))
 			return
 		default:
-			if err := c.processMessage(workerID, msg); err != nil {
+			if err := c.processMessage(msg); err != nil {
 				c.logger.Error(fmt.Sprintf("Worker %d: Error processing message %s: %v",
 					workerID, aws.ToString(msg.MessageId), err))
 				//c.sendToDLQ()
@@ -136,23 +138,18 @@ func (c *SQSClient) pollAndProcessMessages(workerID int) {
 	}
 }
 
-func (c *SQSClient) processMessage(workerID int, sqsMsg types.Message) error {
-	messageID := aws.ToString(sqsMsg.MessageId)
+func (c *SQSClient) processMessage(sqsMsg types.Message) error {
+	//messageID := aws.ToString(sqsMsg.MessageId)
 	body := aws.ToString(sqsMsg.Body)
 
-	c.logger.Info(fmt.Sprintf("Worker %d: Processing message %s with body ", workerID, messageID, body))
+	//c.logger.Info(fmt.Sprintf("Worker %d: Processing message %s with body ", workerID, messageID, body))
 
 	var msg models.Task
 	if err := json.Unmarshal([]byte(body), &msg); err != nil {
 		return fmt.Errorf("failed to unmarshal message: %w", err)
 	}
 
-	pod, err := c.kubeClient.CreatePodObject(msg)
-	_, err = c.kubeClient.CreatePod("default", pod)
-	if err != nil {
-		return err
-	}
-	c.logger.Info(fmt.Sprintf("Worker %d: Processed message %s with body %s", workerID, messageID, body))
+	c.kubeClient.CreateJob(msg)
 	return nil
 }
 

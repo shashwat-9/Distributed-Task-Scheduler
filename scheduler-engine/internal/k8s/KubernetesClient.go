@@ -2,14 +2,15 @@ package k8s
 
 import (
 	"context"
-	"fmt"
 	"go.uber.org/zap"
-	v1 "k8s.io/api/core/v1"
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
+	"k8s.io/utils/pointer"
 	"os"
 	"path/filepath"
 	"scheduler-engine/internal/models"
@@ -68,28 +69,26 @@ func createKubernetesClient() (kubernetes.Interface, error) {
 
 }
 
-func (km *KubernetesManager) CreatePodObject(task models.Task) (*v1.Pod, error) {
-	podName := fmt.Sprintf("task-%d-jobId-%d", task.Payload.TaskId, task.JobID)
-	namespace := "default" //will be changed later
-	pod := &v1.Pod{
+func (km *KubernetesManager) CreateJob(task models.Task) {
+
+	image := task.Image
+	name := task.Name
+	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      podName,
-			Namespace: namespace,
+			Name:      name,
+			Namespace: "default", // change to target namespace
 		},
-		Spec: v1.PodSpec{
-			Containers: []v1.Container{
-				{
-					Name:  podName,
-					Image: task.Payload.Image,
-					Command: []string{
-						"/bin/sh",
-						"-c",
-						fmt.Sprintf("echo %s > /tmp/output.txt", task.Payload.OutputLocation),
-					},
-					VolumeMounts: []v1.VolumeMount{
+		Spec: batchv1.JobSpec{
+			BackoffLimit: pointer.Int32(3), // retry up to 3 times
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					RestartPolicy: corev1.RestartPolicyOnFailure,
+					Containers: []corev1.Container{
 						{
-							Name:      "output-volume",
-							MountPath: "/tmp",
+							Name:    name,
+							Image:   image,
+							Command: []string{"bash", "-c"},
+							Args:    []string{"./execute.sh -c 'pip install pandas openpyxl' -c 'python3 excel_generator.py' -s '1778583996' -f 's3://amzn-dts-input/SampleScript.py'"},
 						},
 					},
 				},
@@ -97,22 +96,7 @@ func (km *KubernetesManager) CreatePodObject(task models.Task) (*v1.Pod, error) 
 		},
 	}
 
-	return pod, nil
+	result, _ := km.client.BatchV1().Jobs("default").Create(context.TODO(), job, metav1.CreateOptions{})
+	logger.Info("Job created successfully : " + result.String())
 
-}
-
-func (km *KubernetesManager) CreatePod(namespace string, pod *v1.Pod) (*v1.Pod, error) {
-	createdPod, err := km.client.CoreV1().Pods(namespace).Create(context.TODO(), pod, metav1.CreateOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("error creating pod: %v", err)
-	}
-	return createdPod, nil
-}
-
-func (km *KubernetesManager) DeletePod(namespace, name string) error {
-	err := km.client.CoreV1().Pods(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
-	if err != nil {
-		return fmt.Errorf("error deleting pod %s/%s: %v", namespace, name, err)
-	}
-	return nil
 }
