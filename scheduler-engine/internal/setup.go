@@ -19,23 +19,21 @@ func Init(appConfig config.AppConfig, logger *zap.Logger) (AppState, error) {
 	logger.Info("Creating Application State:")
 
 	logger.Info("Creating Task Consumers")
-	appState.TaskConsumer, err = consumer.NewSQSClient(appConfig.TaskClient.ConsumerConfig)
+	appState.TaskConsumer, err = consumer.NewSQSClient(appConfig.TaskClient.ConsumerConfig, appConfig.TaskClient.WorkersThreads)
 	if err != nil {
 		return appState, err
 	}
 
 	logger.Info("Creating Kubernetes Client")
-	kubernetesClient, err := k8s.GetKubernetesManager()
+	appState.KubernetesClient, err = k8s.GetKubernetesManager()
 	if err != nil {
 		return appState, err
 	}
 
-	appState.KubernetesClient = kubernetesClient
 	return appState, nil
 }
 
 func (appstate AppState) StartApplication() error {
-
 	appstate.TaskConsumer.Start()
 	return nil
 }

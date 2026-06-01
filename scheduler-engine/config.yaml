@@ -5,7 +5,7 @@ task_client:
     max_messages: 5
     wait_time_seconds: 10
     visibility_timeout: 30
-    workers: 25
   producer:
-kube_client:
-  namespace: "default"
+    queue_url: ""
+    region: "ap-south-1"
+  worker_thread: 25
