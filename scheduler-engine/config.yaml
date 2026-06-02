@@ -6,6 +6,6 @@ task_client:
     wait_time_seconds: 10
     visibility_timeout: 30
   producer:
-    queue_url: ""
+    queue_url: "https://sqs.ap-south-1.amazonaws.com/767397741554/dts_execution_status"
     region: "ap-south-1"
-  worker_thread: 25
+  workers_threads: 25

@@ -1,16 +1,18 @@
 package models
 
 type Task struct {
-	JobId         string              `json:"id"`
-	Name          string              `json:"name"`
-	Image         string              `json:"image"`
-	Namespace     string              `json:"namespace"`
-	InputLocation string              `json:"file_location"`
-	Schedule      string              `json:"Schedule"`
-	Compute       string              `json:"compute"`
-	Memory        string              `json:"memory"`
-	Retries       string              `json:"retries"`
-	Command       []string            `json:"command"`
-	EnvVariables  []map[string]string `json:"env"`
-	Timeout       string              `json:"timeout"`
+	JobId         string            `json:"id"`
+	Name          string            `json:"name"`
+	Image         string            `json:"image"`
+	Namespace     string            `json:"namespace"`
+	InputLocation string            `json:"file_location"`
+	Schedule      string            `json:"Schedule"`
+	Retries       int32             `json:"retries"`
+	Command       []string          `json:"command"`
+	EnvVariables  map[string]string `json:"env"`
+	Timeout       int64             `json:"timeout"`
+	MinCompute    string            `json:"min_compute"`
+	MinMemory     string            `json:"min_memory"`
+	MaxMemory     string            `json:"max_memory"`
+	MaxCompute    string            `json:"max_compute"`
 }

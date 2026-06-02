@@ -19,14 +19,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 )
 
+var kubeClient *k8s.KubernetesManager
+
 type SQSClient struct {
 	client         *sqs.Client
 	ConsumerConfig consumerConfig.TaskConsumerConfig
+	DLQConfig      consumerConfig.DLQProducerConfig
 	workerCount    int
 	shutdown       chan struct{}
 	wg             sync.WaitGroup
 	logger         *zap.Logger
-	kubeClient     *k8s.KubernetesManager
 }
 
 func NewSQSClient(taskConsumerConfig consumerConfig.TaskConsumerConfig, workerCount int) (*SQSClient, error) {
@@ -37,14 +39,16 @@ func NewSQSClient(taskConsumerConfig consumerConfig.TaskConsumerConfig, workerCo
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
-	kubeClient, err := k8s.GetKubernetesManager()
+	kubeClient, err = k8s.GetKubernetesManager()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize Kubernetes client: %w", err)
+	}
 	return &SQSClient{
 		client:         sqs.NewFromConfig(awsConfig),
 		ConsumerConfig: taskConsumerConfig,
 		workerCount:    workerCount,
 		shutdown:       make(chan struct{}),
 		logger:         util.GetLogger("logs/sqs.log", 10, 5, 28),
-		kubeClient:     kubeClient,
 	}, nil
 }
 
@@ -124,7 +128,7 @@ func (c *SQSClient) pollAndProcessMessages(workerID int) {
 			c.logger.Error(fmt.Sprintf("Worker %d: Context deadline exceeded", workerID))
 			return
 		default:
-			if err := c.processMessage(msg); err != nil {
+			if err := c.processMessage(ctx, msg); err != nil {
 				c.logger.Error(fmt.Sprintf("Worker %d: Error processing message %s: %v",
 					workerID, aws.ToString(msg.MessageId), err))
 				//c.sendToDLQ()
@@ -138,18 +142,30 @@ func (c *SQSClient) pollAndProcessMessages(workerID int) {
 	}
 }
 
-func (c *SQSClient) processMessage(sqsMsg types.Message) error {
-	//messageID := aws.ToString(sqsMsg.MessageId)
+func (c *SQSClient) processMessage(ctx context.Context, sqsMsg types.Message) error {
+	messageID := aws.ToString(sqsMsg.MessageId)
 	body := aws.ToString(sqsMsg.Body)
 
-	//c.logger.Info(fmt.Sprintf("Worker %d: Processing message %s with body ", workerID, messageID, body))
+	c.logger.Info(fmt.Sprintf("Worker: Processing message %s with body %s", messageID, body))
 
 	var msg models.Task
 	if err := json.Unmarshal([]byte(body), &msg); err != nil {
 		return fmt.Errorf("failed to unmarshal message: %w", err)
 	}
 
-	c.kubeClient.CreateJob(msg)
+	exists, err := kubeClient.JobExistsByLabel(msg.Name, msg.Namespace)
+	if err != nil {
+		return err
+	} else if exists == true {
+		//DeleteMessage
+		//c.deleteMessage(ctx, sqsMsg)
+		//c.logger.Info(fmt.Sprintf("Worker: Job %s already exists, deleting message %s", msg.Name, messageID))
+		return nil
+	}
+	err = kubeClient.CreateJob(msg)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -166,6 +182,10 @@ func (c *SQSClient) deleteMessage(ctx context.Context, msg types.Message) error 
 	c.logger.Info(fmt.Sprintf("Deleted message %s", aws.ToString(msg.MessageId)))
 	return nil
 }
+
+//func (c *SQSClient) sendToDLQ() {
+//
+//}
 
 func (c *SQSClient) GetQueueAttributes() error {
 	result, err := c.client.GetQueueAttributes(context.TODO(), &sqs.GetQueueAttributesInput{
