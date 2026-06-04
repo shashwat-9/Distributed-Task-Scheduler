@@ -19,7 +19,7 @@ func Init(appConfig config.AppConfig, logger *zap.Logger) (AppState, error) {
 	logger.Info("Creating Application State:")
 
 	logger.Info("Creating Task Consumers")
-	appState.TaskConsumer, err = consumer.NewSQSClient(appConfig.TaskClient.ConsumerConfig, appConfig.TaskClient.WorkersThreads)
+	appState.TaskConsumer, err = consumer.NewSQSClient(appConfig.TaskClient.ConsumerConfig, appConfig.TaskClient.WorkersThreads, logger.Named("Task Consumer"))
 	if err != nil {
 		return appState, err
 	}

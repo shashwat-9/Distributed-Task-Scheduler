@@ -9,3 +9,4 @@ task_client:
     queue_url: "https://sqs.ap-south-1.amazonaws.com/767397741554/dts_execution_status"
     region: "ap-south-1"
   workers_threads: 25
+  default_job_timeout_seconds: 999999

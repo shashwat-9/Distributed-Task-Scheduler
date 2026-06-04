@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	logger := util.GetLogger("logs/app.log", 10, 5, 28)
+	logger := util.GetLogger()
 
 	defer func(logger *zap.Logger) {
 		err := logger.Sync()

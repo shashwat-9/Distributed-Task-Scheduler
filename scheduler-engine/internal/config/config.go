@@ -25,6 +25,7 @@ type TaskClient struct {
 	ConsumerConfig TaskConsumerConfig `mapstructure:"consumer" validate:"required"`
 	ProducerConfig DLQProducerConfig  `mapstructure:"producer" validate:"required"`
 	WorkersThreads int                `mapstructure:"workers_threads" validate:"required"`
+	DefaultTimeout int64              `mapstructure:"default_job_timeout_seconds" validate:"required"`
 }
 
 type AppConfig struct {

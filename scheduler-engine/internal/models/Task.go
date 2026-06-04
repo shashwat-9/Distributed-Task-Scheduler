@@ -15,4 +15,10 @@ type Task struct {
 	MinMemory     string            `json:"min_memory"`
 	MaxMemory     string            `json:"max_memory"`
 	MaxCompute    string            `json:"max_compute"`
+	SecretRefs    []SecretReference `json:"secret_refs,omitempty"`
+}
+
+type SecretReference struct {
+	SecretName string            `json:"secret_name"`
+	EnvVars    map[string]string `json:"env_vars"` // key in secret -> env var name
 }
