@@ -15,15 +15,17 @@ import (
 	"k8s.io/utils/pointer"
 	"os"
 	"path/filepath"
+	"scheduler-engine/internal/constants"
 	"scheduler-engine/internal/models"
 	"scheduler-engine/internal/util"
+	"strings"
 )
 
 var kubernetesManager KubernetesManager
-var logger *zap.Logger
 
 type KubernetesManager struct {
 	client kubernetes.Interface
+	logger *zap.Logger
 }
 
 func GetKubernetesManager() (*KubernetesManager, error) {
@@ -33,8 +35,8 @@ func GetKubernetesManager() (*KubernetesManager, error) {
 			return nil, err
 		}
 		kubernetesManager.client = client
-		logger = util.GetLogger("logs/k8s.log", 10, 5, 28)
-		logger.Info("Kubernetes Manager Initialized")
+		kubernetesManager.logger = util.GetLogger()
+		kubernetesManager.logger.Info("Kubernetes Manager Initialized")
 	}
 	return &kubernetesManager, nil
 }
@@ -88,7 +90,7 @@ func (km *KubernetesManager) CreateJob(task models.Task) error {
 		},
 		Spec: batchv1.JobSpec{
 			BackoffLimit:          pointer.Int32(task.Retries),
-			ActiveDeadlineSeconds: pointer.Int64(task.Timeout),
+			ActiveDeadlineSeconds: pointer.Int64(getTimeout(task.Timeout)),
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
@@ -103,8 +105,8 @@ func (km *KubernetesManager) CreateJob(task models.Task) error {
 							Name:      name,
 							Image:     task.Image,
 							Command:   []string{"bash", "-c"},
-							Args:      createCmds(task.Command),
-							Env:       mapToEnvVars(task.EnvVariables),
+							Args:      createArgs(task.Command, task.Schedule, task.InputLocation),
+							Env:       mapToEnvVars(task),
 							Resources: createResourceRequirements(task.MinCompute, task.MinMemory, task.MaxCompute, task.MaxMemory),
 						},
 					},
@@ -115,29 +117,45 @@ func (km *KubernetesManager) CreateJob(task models.Task) error {
 
 	result, err := km.client.BatchV1().Jobs(task.Namespace).Create(context.TODO(), job, metav1.CreateOptions{})
 	if err != nil {
-		logger.Error("Error creating job : " + err.Error())
+		kubernetesManager.logger.Error("Error creating job : " + err.Error())
 		return err
 	}
-	logger.Info("Job created successfully : " + result.String())
+	kubernetesManager.logger.Info("Job created successfully : " + result.String())
 
 	return nil
 }
 
-func mapToEnvVars(envMap map[string]string) []corev1.EnvVar {
+func mapToEnvVars(task models.Task) []corev1.EnvVar {
 	var envVars []corev1.EnvVar
-	for key, value := range envMap {
+	for key, value := range task.EnvVariables {
 		envVars = append(envVars, corev1.EnvVar{
 			Name:  key,
 			Value: value,
 		})
 	}
 
+	for _, secretRef := range task.SecretRefs {
+		for secretKey, envVarName := range secretRef.EnvVars {
+			envVars = append(envVars, corev1.EnvVar{
+				Name: envVarName,
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{
+							Name: secretRef.SecretName,
+						},
+						Key: secretKey,
+					},
+				},
+			})
+		}
+	}
+
 	return envVars
 }
 
-func (km *KubernetesManager) JobExistsByLabel(originalName string, namespace string) (bool, error) {
+func (km *KubernetesManager) JobExistsByLabel(key string, value string, namespace string) (bool, error) {
 	listOptions := metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("original-name=%s", originalName),
+		LabelSelector: fmt.Sprintf("%s=%s", key, value),
 		Limit:         1,
 	}
 
@@ -146,34 +164,30 @@ func (km *KubernetesManager) JobExistsByLabel(originalName string, namespace str
 		return false, err
 	}
 
-	for _, job := range jobs.Items {
-		if job.Status.Active > 0 {
-			return true, nil
-		}
-		if job.Status.Succeeded > 0 {
-			return true, nil
-		}
-		if job.Status.Failed > 0 {
-			return true, nil
-		}
+	if jobs != nil && len(jobs.Items) > 0 {
+		return true, nil
 	}
 
 	return false, nil
 }
 
-func createCmds(cmds []string) (cmdsArray []string) {
-	//for _, cmd := range cmds {
-	//	cmdsArray = append(cmdsArray, cmd)
-	//}
-	//return cmdsArray
+func createArgs(cmds []string, schedule string, inputLocation string) []string {
+	var args []string
+	args = append(args, "./execute.sh")
+	for _, cmd := range cmds {
+		args = append(args, "-c", "'"+cmd+"'")
+	}
+	args = append(args, "-s", "'"+schedule+"'")
+	args = append(args, "-f", "'"+inputLocation+"'")
 
-	return []string{"./execute.sh -c 'pip install pandas openpyxl' -c 'python3 excel_generator.py' -s '1778583996' -f 's3://amzn-dts-input/SampleScript.py'"}
+	cmd := strings.Join(args, " ")
+	return []string{cmd}
 }
 
-func getTimeout(timeout int) int {
-	//if timeout == 0 {
-	//	return nil
-	//}
+func getTimeout(timeout int64) int64 {
+	if timeout == 0 {
+		return constants.DefaultTimeout
+	}
 	return timeout
 }
 

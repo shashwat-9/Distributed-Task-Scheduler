@@ -9,7 +9,6 @@ import (
 	consumerConfig "scheduler-engine/internal/config"
 	"scheduler-engine/internal/k8s"
 	"scheduler-engine/internal/models"
-	"scheduler-engine/internal/util"
 	"sync"
 	"time"
 
@@ -19,8 +18,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 )
 
-var kubeClient *k8s.KubernetesManager
-
 type SQSClient struct {
 	client         *sqs.Client
 	ConsumerConfig consumerConfig.TaskConsumerConfig
@@ -29,9 +26,10 @@ type SQSClient struct {
 	shutdown       chan struct{}
 	wg             sync.WaitGroup
 	logger         *zap.Logger
+	kubeClient     *k8s.KubernetesManager
 }
 
-func NewSQSClient(taskConsumerConfig consumerConfig.TaskConsumerConfig, workerCount int) (*SQSClient, error) {
+func NewSQSClient(taskConsumerConfig consumerConfig.TaskConsumerConfig, workerCount int, namedLogger *zap.Logger) (*SQSClient, error) {
 	awsConfig, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithRegion(taskConsumerConfig.Region),
 	)
@@ -39,7 +37,7 @@ func NewSQSClient(taskConsumerConfig consumerConfig.TaskConsumerConfig, workerCo
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
-	kubeClient, err = k8s.GetKubernetesManager()
+	kubernetesClient, err := k8s.GetKubernetesManager()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize Kubernetes client: %w", err)
 	}
@@ -48,7 +46,8 @@ func NewSQSClient(taskConsumerConfig consumerConfig.TaskConsumerConfig, workerCo
 		ConsumerConfig: taskConsumerConfig,
 		workerCount:    workerCount,
 		shutdown:       make(chan struct{}),
-		logger:         util.GetLogger("logs/sqs.log", 10, 5, 28),
+		kubeClient:     kubernetesClient,
+		logger:         namedLogger,
 	}, nil
 }
 
@@ -56,7 +55,7 @@ func (c *SQSClient) Start() {
 	c.logger.Info(fmt.Sprintf("Starting Task consumer with %d workers for queue: %s", c.workerCount, c.ConsumerConfig.QueueURL))
 
 	for i := 0; i < c.workerCount; i++ {
-		c.logger.Info(fmt.Sprintf("Starting worker %d", i))
+		//c.logger.Info(fmt.Sprintf("Starting worker %d", i))
 		c.wg.Add(1)
 		go c.worker(i)
 	}
@@ -131,7 +130,10 @@ func (c *SQSClient) pollAndProcessMessages(workerID int) {
 			if err := c.processMessage(ctx, msg); err != nil {
 				c.logger.Error(fmt.Sprintf("Worker %d: Error processing message %s: %v",
 					workerID, aws.ToString(msg.MessageId), err))
-				//c.sendToDLQ()
+				err := c.sendToDLQ(msg, err.Error())
+				if err != nil {
+					continue
+				}
 			}
 
 			if err := c.deleteMessage(ctx, msg); err != nil {
@@ -153,16 +155,20 @@ func (c *SQSClient) processMessage(ctx context.Context, sqsMsg types.Message) er
 		return fmt.Errorf("failed to unmarshal message: %w", err)
 	}
 
-	exists, err := kubeClient.JobExistsByLabel(msg.Name, msg.Namespace)
+	exists, err := c.kubeClient.JobExistsByLabel("execution_id", msg.JobId, msg.Namespace)
 	if err != nil {
+		//Check for cases of job creation issues to push to DLQ
+		//Check for cluster issues and log them
 		return err
 	} else if exists == true {
-		//DeleteMessage
-		//c.deleteMessage(ctx, sqsMsg)
-		//c.logger.Info(fmt.Sprintf("Worker: Job %s already exists, deleting message %s", msg.Name, messageID))
+		err := c.deleteMessage(ctx, sqsMsg)
+		if err != nil {
+			return err
+		}
+		c.logger.Info(fmt.Sprintf("Worker: Job %s already exists, deleting message %s", msg.Name, messageID))
 		return nil
 	}
-	err = kubeClient.CreateJob(msg)
+	err = c.kubeClient.CreateJob(msg)
 	if err != nil {
 		return err
 	}
@@ -183,9 +189,42 @@ func (c *SQSClient) deleteMessage(ctx context.Context, msg types.Message) error 
 	return nil
 }
 
-//func (c *SQSClient) sendToDLQ() {
-//
-//}
+func (c *SQSClient) sendToDLQ(originalMessage types.Message, errorReason string) error {
+	dlqMessage := map[string]interface{}{
+		"originalMessageId":  aws.ToString(originalMessage.MessageId),
+		"originalBody":       aws.ToString(originalMessage.Body),
+		"errorReason":        errorReason,
+		"timestamp":          time.Now().UTC().Format(time.RFC3339),
+		"originalAttributes": originalMessage.MessageAttributes,
+	}
+
+	messageBody, err := json.Marshal(dlqMessage)
+	if err != nil {
+		return fmt.Errorf("failed to marshal DLQ message: %w", err)
+	}
+
+	_, err = c.client.SendMessage(context.TODO(), &sqs.SendMessageInput{
+		QueueUrl:    &c.DLQConfig.QueueURL,
+		MessageBody: aws.String(string(messageBody)),
+		MessageAttributes: map[string]types.MessageAttributeValue{
+			"ErrorReason": {
+				DataType:    aws.String("String"),
+				StringValue: aws.String(errorReason),
+			},
+			"OriginalMessageId": {
+				DataType:    aws.String("String"),
+				StringValue: originalMessage.MessageId,
+			},
+		},
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to send message to DLQ: %w", err)
+	}
+
+	c.logger.Info(fmt.Sprintf("Successfully sent message to DLQ: %s", aws.ToString(originalMessage.MessageId)))
+	return nil
+}
 
 func (c *SQSClient) GetQueueAttributes() error {
 	result, err := c.client.GetQueueAttributes(context.TODO(), &sqs.GetQueueAttributesInput{
